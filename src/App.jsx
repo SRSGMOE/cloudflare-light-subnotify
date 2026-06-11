@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { Button, Card, Modal } from 'animal-island-ui'
 import { checkAuth, verifyToken, getSubscriptions } from './api'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -42,7 +41,6 @@ export default function App() {
       }
     } catch (error) {
       console.error('Auth check failed:', error)
-      // API 失败时显示登录页面
       setNeedLogin(true)
     }
     setChecking(false)
@@ -77,10 +75,10 @@ export default function App() {
         height: '100vh',
         background: 'var(--animal-bg-color-secondary)'
       }}>
-        <Card style={{ textAlign: 'center', padding: '40px' }}>
-          <div style={{ fontSize: '24px', marginBottom: '16px' }}>🌿</div>
+        <div className="card" style={{ textAlign: 'center', padding: '40px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌿</div>
           <div>加载中...</div>
-        </Card>
+        </div>
       </div>
     )
   }
@@ -90,21 +88,9 @@ export default function App() {
   }
 
   const menuItems = [
-    {
-      key: 'dashboard',
-      icon: '📊',
-      label: '数据表盘',
-    },
-    {
-      key: 'subscriptions',
-      icon: '📋',
-      label: '订阅管理',
-    },
-    {
-      key: 'settings',
-      icon: '⚙️',
-      label: '系统设置',
-    },
+    { key: 'dashboard', icon: '📊', label: '数据表盘' },
+    { key: 'subscriptions', icon: '📋', label: '订阅管理' },
+    { key: 'settings', icon: '⚙️', label: '系统设置' },
   ]
 
   return (
@@ -157,16 +143,6 @@ export default function App() {
                   ? 'var(--animal-primary-color)' 
                   : 'var(--animal-text-color-secondary)',
               }}
-              onMouseEnter={(e) => {
-                if (currentPage !== item.key) {
-                  e.currentTarget.style.background = 'var(--animal-bg-color)'
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (currentPage !== item.key) {
-                  e.currentTarget.style.background = 'transparent'
-                }
-              }}
             >
               <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>
                 {item.icon}
@@ -201,32 +177,17 @@ export default function App() {
               A
             </div>
             <div>
-              <div style={{ 
-                fontSize: '14px', 
-                fontWeight: 500,
-                color: 'var(--animal-text-color)',
-              }}>
+              <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--animal-text-color)' }}>
                 管理员
               </div>
-              <div style={{ 
-                fontSize: '12px', 
-                color: 'var(--animal-text-color-secondary)',
-              }}>
+              <div style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>
                 系统管理员
               </div>
             </div>
           </div>
-          <Button
-            block
-            onClick={handleLogout}
-            style={{
-              background: 'var(--animal-bg-color)',
-              border: '2px solid var(--animal-border-color)',
-              color: 'var(--animal-text-color)',
-            }}
-          >
+          <button className="btn btn-secondary btn-block" onClick={handleLogout}>
             🚪 退出登录
-          </Button>
+          </button>
         </div>
       </div>
       

@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { Button, Card, Input } from 'animal-island-ui'
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
@@ -110,129 +109,81 @@ export default function SettingsPage() {
       </h2>
 
       {/* Telegram Bot 设置 */}
-      <Card style={{ 
-        marginBottom: '24px', 
-        borderRadius: '20px',
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px',
-        }}>
-          <h3 style={{ 
-            fontSize: '16px', 
-            fontWeight: 700, 
-            color: 'var(--animal-text-color)',
-            margin: 0,
-          }}>
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
             Telegram Bot 设置
           </h3>
-          <Button onClick={handleTestTelegram} loading={testLoading}>
-            🔗 连通性测试
-          </Button>
+          <button className="btn btn-secondary" onClick={handleTestTelegram} disabled={testLoading}>
+            {testLoading ? '测试中...' : '🔗 连通性测试'}
+          </button>
         </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <label style={{
-            display: 'block',
-            marginBottom: '8px',
-            fontWeight: 600,
-            fontSize: '14px',
-            color: 'var(--animal-text-color)',
-          }}>
-            Bot Token
-          </label>
-          <Input
-            value={telegramSettings.bot_token}
-            onChange={(e) => setTelegramSettings({
-              ...telegramSettings,
-              bot_token: e.target.value,
-            })}
-            placeholder="请输入Telegram Bot Token"
-          />
+        <div className="card-body">
+          <div className="form-group">
+            <label className="form-label">Bot Token</label>
+            <input
+              className="input"
+              value={telegramSettings.bot_token}
+              onChange={(e) => setTelegramSettings({...telegramSettings, bot_token: e.target.value})}
+              placeholder="请输入Telegram Bot Token"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Chat ID</label>
+            <input
+              className="input"
+              value={telegramSettings.chat_id}
+              onChange={(e) => setTelegramSettings({...telegramSettings, chat_id: e.target.value})}
+              placeholder="请输入接收通知的Chat ID"
+            />
+          </div>
+          <button className="btn btn-primary" onClick={handleSaveTelegram} disabled={loading}>
+            {loading ? '保存中...' : '💾 保存设置'}
+          </button>
         </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{
-            display: 'block',
-            marginBottom: '8px',
-            fontWeight: 600,
-            fontSize: '14px',
-            color: 'var(--animal-text-color)',
-          }}>
-            Chat ID
-          </label>
-          <Input
-            value={telegramSettings.chat_id}
-            onChange={(e) => setTelegramSettings({
-              ...telegramSettings,
-              chat_id: e.target.value,
-            })}
-            placeholder="请输入接收通知的Chat ID"
-          />
-        </div>
-
-        <Button type="primary" onClick={handleSaveTelegram} loading={loading}>
-          💾 保存设置
-        </Button>
-      </Card>
+      </div>
 
       {/* 通知标题设置 */}
-      <Card style={{ borderRadius: '20px' }}>
-        <h3 style={{ 
-          fontSize: '16px', 
-          fontWeight: 700, 
-          color: 'var(--animal-text-color)',
-          marginBottom: '20px',
-        }}>
-          通知标题设置
-        </h3>
-
-        <div style={{ marginBottom: '16px' }}>
-          <Input
-            value={notifySettings.title}
-            onChange={(e) => setNotifySettings({
-              ...notifySettings,
-              title: e.target.value,
-            })}
-            placeholder="请输入通知标题"
-          />
+      <div className="card">
+        <div className="card-header">
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+            通知标题设置
+          </h3>
         </div>
-
-        <div style={{ marginBottom: '20px' }}>
-          <label style={{
-            display: 'block',
-            marginBottom: '8px',
-            fontWeight: 600,
-            fontSize: '14px',
-            color: 'var(--animal-text-color)',
-          }}>
-            预览效果
-          </label>
-          <div style={{
-            background: 'var(--animal-bg-color)',
-            padding: '16px',
-            borderRadius: 'var(--animal-border-radius-sm)',
-            fontSize: '14px',
-            whiteSpace: 'pre-line',
-            lineHeight: 1.8,
-            border: '2px solid var(--animal-border-color-light)',
-            color: 'var(--animal-text-color)',
-          }}>
-            {notifyPreview}
+        <div className="card-body">
+          <div className="form-group">
+            <input
+              className="input"
+              value={notifySettings.title}
+              onChange={(e) => setNotifySettings({...notifySettings, title: e.target.value})}
+              placeholder="请输入通知标题"
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">预览效果</label>
+            <div style={{
+              background: 'var(--animal-bg-color)',
+              padding: '16px',
+              borderRadius: 'var(--animal-border-radius-sm)',
+              fontSize: '14px',
+              whiteSpace: 'pre-line',
+              lineHeight: 1.8,
+              border: '2px solid var(--animal-border-color-light)',
+              color: 'var(--animal-text-color)',
+            }}>
+              {notifyPreview}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button className="btn btn-primary" onClick={handleSaveNotify} disabled={loading}>
+              {loading ? '保存中...' : '💾 保存设置'}
+            </button>
+            <button className="btn btn-secondary" onClick={handleTestNotify} disabled={notifyTestLoading}>
+              {notifyTestLoading ? '发送中...' : '📤 测试通知'}
+            </button>
           </div>
         </div>
-
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <Button type="primary" onClick={handleSaveNotify} loading={loading}>
-            💾 保存设置
-          </Button>
-          <Button onClick={handleTestNotify} loading={notifyTestLoading}>
-            📤 测试通知
-          </Button>
-        </div>
-      </Card>
+      </div>
     </div>
   )
 }

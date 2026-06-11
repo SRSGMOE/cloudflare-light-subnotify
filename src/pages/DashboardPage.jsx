@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react'
-import { Card } from 'animal-island-ui'
 
 export default function DashboardPage({ subscriptions }) {
   const [utcTime, setUtcTime] = useState('')
@@ -45,28 +44,20 @@ export default function DashboardPage({ subscriptions }) {
       </h2>
       
       {/* 提示卡片 */}
-      <Card style={{
+      <div className="card" style={{
         marginBottom: '24px',
         background: 'var(--animal-warning-color)',
         border: '2px solid var(--animal-warning-color-active)',
-        borderRadius: 'var(--animal-border-radius-base)',
       }}>
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: '12px',
-          padding: '4px 0',
-        }}>
-          <span style={{ fontSize: '24px' }}>💡</span>
-          <span style={{ 
-            fontWeight: 600, 
-            color: 'var(--animal-text-color)',
-            fontSize: '14px',
-          }}>
-            温馨提示：建议您先把设备时间进行一次同步更新再进行操作，以确保时间显示准确。
-          </span>
+        <div className="card-body">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '24px' }}>💡</span>
+            <span style={{ fontWeight: 600, color: 'var(--animal-text-color)' }}>
+              温馨提示：建议您先把设备时间进行一次同步更新再进行操作，以确保时间显示准确。
+            </span>
+          </div>
         </div>
-      </Card>
+      </div>
       
       {/* 时间卡片 */}
       <div style={{ 
@@ -75,44 +66,47 @@ export default function DashboardPage({ subscriptions }) {
         gap: '16px',
         marginBottom: '24px',
       }}>
-        <Card style={{
+        <div className="card" style={{
           background: 'linear-gradient(135deg, #5B9BD5, #4472C4)',
-          borderRadius: 'var(--animal-border-radius-lg)',
           color: '#fff',
         }}>
-          <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-            世界协调时 UTC
+          <div className="card-body">
+            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
+              世界协调时 UTC
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700 }}>
+              {utcTime}
+            </div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700 }}>
-            {utcTime}
-          </div>
-        </Card>
+        </div>
         
-        <Card style={{
+        <div className="card" style={{
           background: 'linear-gradient(135deg, #ED7D31, #C55A11)',
-          borderRadius: 'var(--animal-border-radius-lg)',
           color: '#fff',
         }}>
-          <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-            北京时间 CST
+          <div className="card-body">
+            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
+              北京时间 CST
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700 }}>
+              {cstTime}
+            </div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700 }}>
-            {cstTime}
-          </div>
-        </Card>
+        </div>
         
-        <Card style={{
+        <div className="card" style={{
           background: 'linear-gradient(135deg, #70AD47, #548235)',
-          borderRadius: 'var(--animal-border-radius-lg)',
           color: '#fff',
         }}>
-          <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-            美国东部 ET
+          <div className="card-body">
+            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
+              美国东部 ET
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700 }}>
+              {etTime}
+            </div>
           </div>
-          <div style={{ fontSize: '18px', fontWeight: 700 }}>
-            {etTime}
-          </div>
-        </Card>
+        </div>
       </div>
       
       {/* 数据卡片 */}
@@ -122,116 +116,86 @@ export default function DashboardPage({ subscriptions }) {
         gap: '16px',
         marginBottom: '24px',
       }}>
-        <Card style={{
-          background: '#f7f3df',
-          borderRadius: '20px',
-          padding: '20px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              background: 'var(--animal-primary-color-bg)',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              color: 'var(--animal-primary-color)',
-            }}>
-              📋
-            </div>
-            <div>
-              <div style={{ 
-                fontSize: '28px', 
-                fontWeight: 700, 
-                color: 'var(--animal-text-color)' 
+        <div className="card">
+          <div className="card-body">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                background: 'var(--animal-primary-color-bg)',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
               }}>
-                {subscriptions.length}
+                📋
               </div>
-              <div style={{ 
-                fontSize: '14px', 
-                color: 'var(--animal-text-color-secondary)' 
-              }}>
-                总订阅
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                  {subscriptions.length}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
+                  总订阅
+                </div>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
         
-        <Card style={{
-          background: '#f7f3df',
-          borderRadius: '20px',
-          padding: '20px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              background: '#e8f5e9',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              color: 'var(--animal-success-color)',
-            }}>
-              ✅
-            </div>
-            <div>
-              <div style={{ 
-                fontSize: '28px', 
-                fontWeight: 700, 
-                color: 'var(--animal-text-color)' 
+        <div className="card">
+          <div className="card-body">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                background: '#e8f5e9',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
               }}>
-                {active.length}
+                ✅
               </div>
-              <div style={{ 
-                fontSize: '14px', 
-                color: 'var(--animal-text-color-secondary)' 
-              }}>
-                订阅中
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                  {active.length}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
+                  订阅中
+                </div>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
         
-        <Card style={{
-          background: '#f7f3df',
-          borderRadius: '20px',
-          padding: '20px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              background: '#fff3e0',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '20px',
-              color: 'var(--animal-warning-color)',
-            }}>
-              ⏸️
-            </div>
-            <div>
-              <div style={{ 
-                fontSize: '28px', 
-                fontWeight: 700, 
-                color: 'var(--animal-text-color)' 
+        <div className="card">
+          <div className="card-body">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                background: '#fff3e0',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
               }}>
-                {paused.length}
+                ⏸️
               </div>
-              <div style={{ 
-                fontSize: '14px', 
-                color: 'var(--animal-text-color-secondary)' 
-              }}>
-                已停止
+              <div>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                  {paused.length}
+                </div>
+                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
+                  已停止
+                </div>
               </div>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
     </div>
   )
