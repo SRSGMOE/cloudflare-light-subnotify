@@ -1,0 +1,1575 @@
+// Cloudflare Light Subnotify
+// 轻量级订阅到期通知面板
+// 保持单文件架构，但改进代码组织和功能
+
+export default {
+    async fetch(request, env) {
+        const url = new URL(request.url);
+        const path = url.pathname;
+        
+        const corsHeaders = {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        };
+        
+        if (request.method === 'OPTIONS') {
+            return new Response(null, { headers: corsHeaders });
+        }
+        
+        try {
+            // 首页
+            if (path === '/' || path === '/index.html') {
+                return new Response(getHTML(), { 
+                    headers: { 'Content-Type': 'text/html;charset=utf-8' } 
+                });
+            }
+            
+            // API路由
+            if (path.startsWith('/api/')) {
+                const apiPath = path.replace('/api', '') || '/';
+                const response = await handleAPI(request, env, apiPath);
+                const newResponse = new Response(response.body, response);
+                Object.entries(corsHeaders).forEach(([k, v]) => newResponse.headers.set(k, v));
+                if (!newResponse.headers.get('Content-Type')) {
+                    newResponse.headers.set('Content-Type', 'application/json');
+                }
+                return newResponse;
+            }
+            
+            // Telegram Webhook
+            if (path === '/webhook/telegram') {
+                return handleTelegram(request, env);
+            }
+            
+            return new Response('Not Found', { status: 404 });
+        } catch (error) {
+            return new Response(JSON.stringify({ error: error.message }), {
+                status: 500,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+            });
+        }
+    },
+    
+    // 定时任务处理
+    async scheduled(event, env, ctx) {
+        ctx.waitUntil(checkAndSendNotifications(env));
+    }
+};
+
+// ==================== 定时任务 ====================
+async function checkAndSendNotifications(env) {
+    if (!env.DB) {
+        return;
+    }
+    
+    try {
+        await initDB(env.DB);
+        
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentUTCHour = now.getUTCHours();
+        
+        // 获取所有活跃订阅
+        const { results } = await env.DB.prepare(
+            'SELECT * FROM subscriptions WHERE is_active=1'
+        ).all();
+        
+        for (const sub of results) {
+            try {
+                // 计算订阅时区的当前本地时间
+                const offsets = { 'UTC': 0, 'CST': 8, 'ET': -4 };
+                const subOffset = offsets[sub.timezone] || 0;
+                
+                // 获取订阅时区的当前日期和时间
+                const subLocalTime = new Date(now.getTime() + subOffset * 3600000);
+                const subLocalDate = subLocalTime.toISOString().split('T')[0];
+                const subLocalHour = subLocalTime.getUTCHours();
+                const subLocalMinute = subLocalTime.getUTCMinutes();
+                
+                const cycleHour = parseInt(sub.cycle_hour || '09');
+                const cycleMinute = parseInt(sub.cycle_minute || '00');
+                
+                console.log('检查订阅:', {
+                    id: sub.id,
+                    name: sub.name,
+                    nextDate: sub.next_notify_date,
+                    subLocalDate,
+                    cycleHour,
+                    cycleMinute,
+                    subLocalHour,
+                    subLocalMinute
+                });
+                
+                // 检查是否应该发送通知
+                const shouldNotify = 
+                    sub.next_notify_date <= subLocalDate && 
+                    cycleHour === subLocalHour && 
+                    Math.abs(cycleMinute - subLocalMinute) < 10;
+                
+                if (shouldNotify) {
+                    console.log('发送通知:', sub.name);
+                    
+                    // 计算下一个通知日期
+                    const nextDate = calculateNextDate(
+                        sub.cycle_type, 
+                        sub.cycle_value, 
+                        sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
+                        sub.timezone, 
+                        sub.next_notify_date
+                    );
+                    
+                    // 发送通知
+                    await sendTelegramMessage(env, sub, nextDate);
+                    
+                    // 更新下次通知日期
+                    await env.DB.prepare(
+                        'UPDATE subscriptions SET next_notify_date=? WHERE id=?'
+                    ).bind(nextDate, sub.id).run();
+                }
+            } catch (e) {
+                console.error('处理订阅失败:', e);
+            }
+        }
+    } catch (e) {
+        console.error('定时通知任务执行失败:', e);
+    }
+}
+
+// ==================== API 处理 ====================
+async function handleAPI(request, env, path) {
+    const method = request.method;
+    const json = (data, status) => new Response(JSON.stringify(data), { status: status || 200 });
+    
+    // 检查数据库绑定
+    if (!env.DB) {
+        return json({ error: '数据库未绑定，请在Settings -> Variables -> D1 Database Bindings中绑定数据库' }, 500);
+    }
+    
+    // 初始化数据库
+    await initDB(env.DB);
+    
+    // 认证相关（不需要密码）
+    if (path === '/auth/status') {
+        return json({ requireAuth: !!env.ADMIN_PASSWORD });
+    }
+    
+    if (path === '/login' && method === 'POST') {
+        const body = await request.json();
+        if (!env.ADMIN_PASSWORD) {
+            return json({ success: true, token: 'no-auth' });
+        }
+        if (body.username === env.ADMIN_USERNAME && body.password === env.ADMIN_PASSWORD) {
+            return json({ success: true, token: generateToken(env.ADMIN_PASSWORD) });
+        }
+        return json({ success: false, error: '用户名或密码错误' }, 401);
+    }
+    
+    if (path === '/auth/verify' && method === 'POST') {
+        const body = await request.json();
+        if (!env.ADMIN_PASSWORD) {
+            return json({ valid: true });
+        }
+        return json({ valid: body.token === generateToken(env.ADMIN_PASSWORD) });
+    }
+    
+    if (path === '/server-time') {
+        const now = new Date();
+        return json({
+            utc: now.toISOString(),
+            timestamp: now.getTime()
+        });
+    }
+    
+    // 需要认证的接口
+    if (env.ADMIN_PASSWORD) {
+        const authHeader = request.headers.get('Authorization');
+        const token = authHeader ? authHeader.replace('Bearer ', '') : '';
+        if (token !== generateToken(env.ADMIN_PASSWORD)) {
+            return json({ error: '未授权' }, 401);
+        }
+    }
+    
+    // 获取Telegram设置
+    if (path === '/telegram-settings' && method === 'GET') {
+        const { results: tokenResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+        ).all();
+        const { results: chatResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+        ).all();
+        
+        return json({
+            bot_token: tokenResults.length > 0 ? tokenResults[0].value : '',
+            chat_id: chatResults.length > 0 ? chatResults[0].value : ''
+        });
+    }
+    
+    // 保存Telegram设置
+    if (path === '/telegram-settings' && method === 'POST') {
+        const body = await request.json();
+        
+        if (body.bot_token !== undefined) {
+            await env.DB.prepare(
+                "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_bot_token', ?)"
+            ).bind(body.bot_token).run();
+        }
+        
+        if (body.chat_id !== undefined) {
+            await env.DB.prepare(
+                "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_chat_id', ?)"
+            ).bind(body.chat_id).run();
+        }
+        
+        return json({ success: true });
+    }
+    
+    // 测试Telegram
+    if (path === '/test-telegram' && method === 'POST') {
+        try {
+            // 先从数据库获取token
+            const { results: tokenResults } = await env.DB.prepare(
+                "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+            ).all();
+            const { results: chatResults } = await env.DB.prepare(
+                "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+            ).all();
+            
+            const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
+            const chatId = chatResults.length > 0 ? chatResults[0].value : '';
+            
+            if (!botToken || !chatId) {
+                return json({ success: false, error: '请先在系统设置中配置Telegram Bot Token和Chat ID' });
+            }
+            
+            const res = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    text: 'Bot已连接！发送 /help 或 /start 查看命令'
+                })
+            });
+            const data = await res.json();
+            return json({ success: data.ok, message: data.description });
+        } catch (error) {
+            return json({ success: false, error: error.message });
+        }
+    }
+    
+    // 订阅CRUD
+    if (path === '/subscriptions' && method === 'GET') {
+        const { results } = await env.DB.prepare('SELECT * FROM subscriptions ORDER BY next_notify_date').all();
+        return json(results);
+    }
+    
+    if (path === '/subscriptions' && method === 'POST') {
+        const body = await request.json();
+        if (!body.name || !body.content || !body.cycle_type || !body.timezone) {
+            return json({ error: '所有必填字段都需要填写' }, 400);
+        }
+        const nextDate = calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true);
+        console.log('创建订阅:', body.name, '类型:', body.cycle_type, '时间:', body.cycle_hour + ':' + body.cycle_minute, '计算结果:', nextDate);
+        await env.DB.prepare(
+            'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date) VALUES (?,?,?,?,?,?,?,?)'
+        ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate).run();
+        return json({ success: true }, 201);
+    }
+    
+    // 单个订阅操作
+    const subMatch = path.match(/^\/subscriptions\/(\d+)$/);
+    if (subMatch) {
+        const id = subMatch[1];
+        
+        if (method === 'GET') {
+            const { results } = await env.DB.prepare('SELECT * FROM subscriptions WHERE id=?').bind(id).all();
+            return results.length ? json(results[0]) : json({ error: '订阅不存在' }, 404);
+        }
+        
+        if (method === 'PUT') {
+            const body = await request.json();
+            let sql = "UPDATE subscriptions SET updated_at=datetime('now')";
+            const params = [];
+            
+            if (body.name !== undefined) { sql += ',name=?'; params.push(body.name); }
+            if (body.content !== undefined) { sql += ',content=?'; params.push(body.content); }
+            if (body.cycle_type !== undefined) { sql += ',cycle_type=?'; params.push(body.cycle_type); }
+            if (body.cycle_value !== undefined) { sql += ',cycle_value=?'; params.push(body.cycle_value); }
+            if (body.cycle_hour !== undefined) { sql += ',cycle_hour=?'; params.push(body.cycle_hour); }
+            if (body.cycle_minute !== undefined) { sql += ',cycle_minute=?'; params.push(body.cycle_minute); }
+            if (body.timezone !== undefined) { sql += ',timezone=?'; params.push(body.timezone); }
+            if (body.is_active !== undefined) { sql += ',is_active=?'; params.push(body.is_active ? 1 : 0); }
+            if (body.cycle_type) {
+                sql += ',next_notify_date=?';
+                params.push(calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true));
+            }
+            
+            sql += ' WHERE id=?';
+            params.push(id);
+            
+            await env.DB.prepare(sql).bind(...params).run();
+            return json({ success: true });
+        }
+        
+        if (method === 'DELETE') {
+            await env.DB.prepare('DELETE FROM subscriptions WHERE id=?').bind(id).run();
+            return json({ success: true });
+        }
+    }
+    
+    // 触发通知
+    if (path === '/notify' && method === 'POST') {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const currentUTCHour = now.getUTCHours();
+        
+        // 获取所有到期的订阅（不比较小时，因为有时区差异）
+        const { results } = await env.DB.prepare(
+            'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
+        ).bind(today).all();
+        
+        let sent = 0;
+        for (const sub of results) {
+            try {
+                // 先计算下一个通知日期
+                const nextDate = calculateNextDate(sub.cycle_type, sub.cycle_value, sub.cycle_hour + ':' + (sub.cycle_minute || '00'), sub.timezone, sub.next_notify_date);
+                
+                // 从数据库获取Telegram设置
+                const { results: tokenResults } = await env.DB.prepare(
+                    "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+                ).all();
+                const { results: chatResults } = await env.DB.prepare(
+                    "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+                ).all();
+                
+                const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
+                const chatId = chatResults.length > 0 ? chatResults[0].value : '';
+                
+                if (botToken && chatId) {
+                    await sendTelegramMessage(env, sub, nextDate);
+                }
+                await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?').bind(nextDate, sub.id).run();
+                sent++;
+            } catch (e) {
+                console.error('发送通知失败:', e);
+            }
+        }
+        
+        return json({ checked: results.length, sent: sent });
+    }
+    
+    // 通知设置 API
+    if (path === '/notify-settings' && method === 'GET') {
+        const { results } = await env.DB.prepare("SELECT * FROM notify_settings WHERE key='title'").all();
+        const title = results.length > 0 ? results[0].value : '订阅到期提醒';
+        return json({ title });
+    }
+    
+    if (path === '/notify-settings' && method === 'POST') {
+        const body = await request.json();
+        await env.DB.prepare(
+            "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('title', ?)"
+        ).bind(body.title || '订阅到期提醒').run();
+        return json({ success: true });
+    }
+    
+    return json({ error: 'API路由未找到' }, 404);
+}
+
+// ==================== 数据库初始化 ====================
+async function initDB(db) {
+    try {
+        const { results } = await db.prepare(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='subscriptions'"
+        ).all();
+        
+        if (results.length === 0) {
+            await db.exec(`
+                CREATE TABLE IF NOT EXISTS subscriptions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    cycle_type TEXT NOT NULL,
+                    cycle_value TEXT,
+                    cycle_hour TEXT DEFAULT '09',
+                    cycle_minute TEXT DEFAULT '00',
+                    timezone TEXT DEFAULT 'UTC',
+                    next_notify_date TEXT NOT NULL,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    is_active INTEGER DEFAULT 1
+                );
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    subscription_id INTEGER NOT NULL,
+                    sent_at TEXT DEFAULT (datetime('now')),
+                    status TEXT DEFAULT 'success'
+                );
+                CREATE TABLE IF NOT EXISTS notify_settings (
+                    id INTEGER PRIMARY KEY,
+                    key TEXT UNIQUE,
+                    value TEXT
+                );
+            `);
+        } else {
+            // 检查并添加新字段
+            const { results: columns } = await db.prepare("PRAGMA table_info(subscriptions)").all();
+            const columnNames = columns.map(c => c.name);
+            
+            if (!columnNames.includes('cycle_hour')) {
+                await db.exec("ALTER TABLE subscriptions ADD COLUMN cycle_hour TEXT DEFAULT '09'");
+            }
+            if (!columnNames.includes('cycle_minute')) {
+                await db.exec("ALTER TABLE subscriptions ADD COLUMN cycle_minute TEXT DEFAULT '00'");
+            }
+            if (!columnNames.includes('timezone')) {
+                await db.exec("ALTER TABLE subscriptions ADD COLUMN timezone TEXT DEFAULT 'UTC'");
+            }
+            // 创建通知设置表（如果不存在）
+            await db.exec("CREATE TABLE IF NOT EXISTS notify_settings (id INTEGER PRIMARY KEY,key TEXT UNIQUE,value TEXT)");
+        }
+    } catch (e) {
+        console.error('数据库初始化失败:', e);
+    }
+}
+
+// ==================== 工具函数 ====================
+function generateToken(password) {
+    let hash = 0;
+    for (let i = 0; i < password.length; i++) {
+        hash = ((hash << 5) - hash) + password.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return 'auth_' + Math.abs(hash).toString(36);
+}
+
+function formatDateTime(date, offsetHours) {
+    const local = new Date(date.getTime() + offsetHours * 3600000);
+    const year = local.getUTCFullYear();
+    const month = String(local.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(local.getUTCDate()).padStart(2, '0');
+    const hours = String(local.getUTCHours()).padStart(2, '0');
+    const minutes = String(local.getUTCMinutes()).padStart(2, '0');
+    const seconds = String(local.getUTCSeconds()).padStart(2, '0');
+    return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+}
+
+// 计算下次通知日期
+function calculateNextDate(type, value, hour, timezone, currentDate, isNew) {
+    console.log('calculateNextDate 调用:', {type, value, hour, timezone, currentDate, isNew});
+    hour = hour || '09';
+    let minute = '00';
+    if (hour && hour.includes(':')) {
+        const parts = hour.split(':');
+        hour = parts[0];
+        minute = parts[1] || '00';
+    }
+    timezone = timezone || 'UTC';
+    
+    // 获取订阅时区的当前时间
+    const offsets = { 'UTC': 0, 'CST': 8, 'ET': -4 };
+    const offset = offsets[timezone] || 0;
+    const now = new Date();
+    const localNow = new Date(now.getTime() + offset * 3600000);
+    
+    console.log('时间计算:', {
+        nowUTC: now.toISOString(),
+        offset: offset,
+        localNow: localNow.toISOString(),
+        localYear: localNow.getUTCFullYear(),
+        localMonth: localNow.getUTCMonth(),
+        localDay: localNow.getUTCDate()
+    });
+    
+    // 获取订阅时区的当前日期（不是UTC日期！）
+    const localYear = localNow.getUTCFullYear();
+    const localMonth = localNow.getUTCMonth();
+    const localDay = localNow.getUTCDate();
+    const currentHour = localNow.getUTCHours();
+    const currentMinute = localNow.getUTCMinutes();
+    
+    // 使用订阅时区的日期，或者传入的日期
+    let year, month, day;
+    if (currentDate) {
+        const dateParts = currentDate.split('-');
+        year = parseInt(dateParts[0]);
+        month = parseInt(dateParts[1]) - 1;
+        day = parseInt(dateParts[2]);
+    } else {
+        year = localYear;
+        month = localMonth;
+        day = localDay;
+    }
+    
+    // 创建日期对象（使用UTC存储，但逻辑上是本地时间）
+    let next = new Date(Date.UTC(year, month, day, parseInt(hour), parseInt(minute), 0));
+    
+    // 当前时间的总分钟数
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
+    const targetTotalMinutes = parseInt(hour) * 60 + parseInt(minute);
+    
+    // 对于新订阅，检查今天是否还能触发
+    console.log('isNew检查:', {isNew, type, value, targetTotalMinutes, currentTotalMinutes, year, month, day, localYear, localMonth, localDay});
+    if (isNew) {
+        // 检查日期是否是订阅时区的今天
+        const isToday = (year === localYear && month === localMonth && day === localDay);
+        
+        if (isToday) {
+            // 对于 weekly，需要检查今天是否是目标星期几
+            if (type === 'weekly') {
+                const targetDay = parseInt(value) || 1;
+                const currentDayOfWeek = next.getUTCDay() === 0 ? 7 : next.getUTCDay();
+                if (targetDay === currentDayOfWeek && targetTotalMinutes > currentTotalMinutes) {
+                    // 今天是目标星期几，且时间没到，返回今天
+                    const result = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                    console.log('返回今天(weekly):', result);
+                    return result;
+                }
+            } else {
+                // 其他类型：如果设置的时间还没到，返回今天
+                if (targetTotalMinutes > currentTotalMinutes) {
+                    const result = year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+                    console.log('返回今天:', result);
+                    return result;
+                }
+            }
+        }
+    }
+    
+    // 计算下一个周期
+    switch (type) {
+        case 'daily':
+            next.setUTCDate(next.getUTCDate() + 1);
+            break;
+            
+        case 'weekly':
+            {
+                const targetDay = parseInt(value) || 1;
+                const currentDay = next.getUTCDay() === 0 ? 7 : next.getUTCDay();
+                let daysToAdd = (targetDay - currentDay + 7) % 7;
+                if (daysToAdd === 0) daysToAdd = 7;
+                next.setUTCDate(next.getUTCDate() + daysToAdd);
+            }
+            break;
+            
+        case 'monthly':
+            {
+                const targetDate = Math.min(parseInt(value) || day, 28);
+                next.setUTCDate(targetDate);
+                if (next.getUTCFullYear() < year || 
+                    (next.getUTCFullYear() === year && next.getUTCMonth() < month) ||
+                    (next.getUTCFullYear() === year && next.getUTCMonth() === month && next.getUTCDate() <= day)) {
+                    next.setUTCMonth(next.getUTCMonth() + 1);
+                }
+            }
+            break;
+            
+        case 'yearly':
+            {
+                const parts = (value || '1-1').split('-');
+                const targetMonth = parseInt(parts[0]) || 1;
+                const targetDay = Math.min(parseInt(parts[1]) || 1, 28);
+                next.setUTCMonth(targetMonth - 1, targetDay);
+                if (next.getUTCFullYear() <= year && next.getUTCMonth() <= month && next.getUTCDate() <= day) {
+                    next.setUTCFullYear(next.getUTCFullYear() + 1);
+                }
+            }
+            break;
+            
+        case 'specific':
+            // 如果 currentDate 为空，使用 value（用户选择的日期）
+            return currentDate || value;
+    }
+    
+    // 返回本地日期字符串
+    const resultYear = next.getUTCFullYear();
+    const resultMonth = String(next.getUTCMonth() + 1).padStart(2, '0');
+    const resultDay = String(next.getUTCDate()).padStart(2, '0');
+    const result = resultYear + '-' + resultMonth + '-' + resultDay;
+    console.log('calculateNextDate 结果:', {result, type, value, hour, timezone, currentDate, isNew});
+    return result;
+}
+
+// ==================== Telegram 相关 ====================
+async function sendTelegramMessage(env, sub, nextDate) {
+    // 从数据库获取自定义标题
+    let notifyTitle = '订阅到期提醒';
+    try {
+        const { results } = await env.DB.prepare("SELECT value FROM notify_settings WHERE key='title'").all();
+        if (results.length > 0) notifyTitle = results[0].value;
+    } catch (e) {}
+    
+    // 从数据库获取Telegram设置
+    let botToken = '';
+    let chatId = '';
+    
+    try {
+        const { results: tokenResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+        ).all();
+        const { results: chatResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+        ).all();
+        
+        if (tokenResults.length > 0 && tokenResults[0].value) {
+            botToken = tokenResults[0].value;
+        }
+        if (chatResults.length > 0 && chatResults[0].value) {
+            chatId = chatResults[0].value;
+        }
+    } catch (e) {}
+    
+    if (!botToken || !chatId) {
+        console.log('Telegram配置不完整，跳过通知发送');
+        return;
+    }
+    
+    const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const cycleLabels = {
+        daily: '每日',
+        weekly: '每周' + days[parseInt(sub.cycle_value) || 1],
+        monthly: '每月' + sub.cycle_value + '日',
+        yearly: '每年' + sub.cycle_value,
+        specific: sub.cycle_value
+    };
+    const tzLabels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
+    
+    // 使用传入的 nextDate 或 sub.next_notify_date
+    const displayDate = nextDate || sub.next_notify_date;
+    
+    const message = notifyTitle + '
+
+' +
+        '【名称】' + sub.name + '
+' +
+        '【内容】' + sub.content + '
+' +
+        '【周期】' + (cycleLabels[sub.cycle_type] || sub.cycle_type) + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + '
+' +
+        '【时区】' + (tzLabels[sub.timezone] || sub.timezone) + '
+' +
+        '【下次通知】' + displayDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+    
+    await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: message })
+    });
+}
+
+// 处理Telegram Webhook
+async function handleTelegram(request, env) {
+    // 时区显示映射
+    const tzMap = { 'UTC': 'UTC+0', 'CST': 'UTC+8', 'ET': 'UTC-4' };
+    if (request.method !== 'POST') {
+        return new Response('OK');
+    }
+    
+    const update = await request.json();
+    if (!update.message || !update.message.text) {
+        return new Response('OK');
+    }
+    
+    const chatId = update.message.chat.id;
+    const text = update.message.text;
+    
+    // 从数据库获取Telegram设置
+    let botToken = '';
+    try {
+        const { results: tokenResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+        ).all();
+        if (tokenResults.length > 0 && tokenResults[0].value) {
+            botToken = tokenResults[0].value;
+        }
+    } catch (e) {}
+    
+    const sendMessage = async (msg) => {
+        await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: msg })
+        });
+    };
+    
+    if (text === '/start' || text === '/help') {
+        await sendMessage('Cloudflare Light Subnotify
+
+可用命令:
+/start - 开始使用
+/help - 查看帮助
+/list - 查看订阅
+/today - 今日通知
+/status - 系统状态');
+    } else if (text === '/list') {
+        const { results } = await env.DB.prepare('SELECT * FROM subscriptions WHERE is_active=1 ORDER BY next_notify_date ASC').all();
+        if (results.length === 0) {
+            await sendMessage('暂无订阅');
+        } else {
+            let msg = '订阅列表:
+
+';
+            results.forEach((s, i) => {
+                msg += (i + 1) + '. ' + s.name + '
+   ' + s.next_notify_date + ' ' + (s.cycle_hour || '09') + ':' + (s.cycle_minute || '00') + ' (' + (tzMap[s.timezone] || 'UTC+0') + ')
+
+';
+            });
+            await sendMessage(msg);
+        }
+    } else if (text === '/today') {
+        const now = new Date();
+        const today = now.toISOString().split('T')[0];
+        const hour = String(now.getUTCHours()).padStart(2, '0');
+        const { results } = await env.DB.prepare(
+            'SELECT * FROM subscriptions WHERE next_notify_date<=? AND cycle_hour<=? AND is_active=1 ORDER BY next_notify_date ASC'
+        ).bind(today, hour).all();
+        
+        if (results.length === 0) {
+            await sendMessage('今日无待通知');
+        } else {
+            let msg = '今日待通知:
+
+';
+            results.forEach((s, i) => {
+                msg += (i + 1) + '. ' + s.name + ' ' + (s.cycle_hour || '09') + ':' + (s.cycle_minute || '00') + ' (' + (tzMap[s.timezone] || 'UTC+0') + ')
+';
+            });
+            await sendMessage(msg);
+        }
+    } else if (text === '/status') {
+        const { results: subs } = await env.DB.prepare('SELECT COUNT(*) as count FROM subscriptions WHERE is_active=1').all();
+        const now = new Date();
+        await sendMessage(
+            '系统状态
+
+' +
+            '世界时钟: ' + formatDateTime(now, 0) + '
+' +
+            '北京时间: ' + formatDateTime(now, 8) + '
+' +
+            '美国东部: ' + formatDateTime(now, -4) + '
+' +
+            '活跃订阅: ' + subs[0].count + ' 个'
+        );
+    }
+    
+    return new Response('OK');
+}
+
+// ==================== HTML 生成 ====================
+function getHTML() {
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cloudflare Light Subnotify</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:#f1f5f9;color:#1e293b}
+.loading{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea,#764ba2);flex-direction:column;color:#fff}
+.spinner{width:48px;height:48px;border:4px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;margin-bottom:20px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#667eea,#764ba2);padding:20px}
+.login-box{background:#fff;border-radius:16px;padding:40px;width:100%;max-width:400px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-box h1{font-size:24px;margin-bottom:8px}
+.login-box p{color:#64748b;margin-bottom:24px;font-size:14px}
+.form-group{margin-bottom:20px;text-align:left}
+.form-group label{display:block;margin-bottom:8px;font-weight:500;font-size:14px}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:8px;font-size:14px;outline:none}
+.form-group textarea{resize:vertical;min-height:80px;font-family:inherit}
+.form-group input:focus,.form-group select:focus{border-color:#6366f1}
+.btn{padding:12px 24px;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;transition:all 0.2s}
+.btn-primary{background:#6366f1;color:#fff}
+.btn-primary:hover{background:#4f46e5}
+.btn-primary:disabled{opacity:.6}
+.btn-secondary{background:#f1f5f9;color:#1e293b}
+.btn-secondary:hover{background:#e2e8f0}
+.error{color:#ef4444;font-size:14px;margin-top:12px}
+
+/* 左侧导航布局 */
+.app-container{display:flex;min-height:100vh}
+.sidebar{width:250px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;display:flex;flex-direction:column;position:fixed;height:100vh;z-index:100}
+.sidebar-header{padding:20px;border-bottom:1px solid rgba(255,255,255,.1)}
+.sidebar-header h1{font-size:18px;font-weight:600}
+.sidebar-nav{flex:1;padding:20px 0}
+.nav-item{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;transition:all 0.2s;border-left:3px solid transparent}
+.nav-item:hover{background:rgba(255,255,255,.1)}
+.nav-item.active{background:rgba(255,255,255,.2);border-left-color:#fff}
+.nav-item .icon{font-size:18px;width:24px;text-align:center}
+.nav-item .label{font-size:14px;font-weight:500}
+.sidebar-footer{padding:20px;border-top:1px solid rgba(255,255,255,.1)}
+.user-info{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.user-avatar{width:36px;height:36px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600}
+.user-name{font-size:14px;font-weight:500}
+.user-role{font-size:12px;opacity:.7}
+.logout-btn{width:100%;padding:8px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:6px;cursor:pointer;font-size:13px}
+.logout-btn:hover{background:rgba(255,255,255,.2)}
+
+/* 主内容区 */
+.main-content{flex:1;margin-left:250px;padding:20px}
+.page-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+.page-header h2{font-size:24px;font-weight:600}
+.page-header .btn{padding:10px 20px;font-size:14px}
+
+/* 提示卡片 */
+.notice-card{background:#fff3cd;border:1px solid #ffc107;border-radius:12px;padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:12px}
+.notice-icon{font-size:24px}
+.notice-text{font-size:14px;color:#856404;font-weight:500}
+
+/* 时间卡片 */
+.time-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.time-card{border-radius:12px;padding:20px;color:#fff}
+.time-card.utc{background:linear-gradient(135deg,#3b82f6,#2563eb)}
+.time-card.cst{background:linear-gradient(135deg,#ef4444,#dc2626)}
+.time-card.et{background:linear-gradient(135deg,#8b5cf6,#7c3aed)}
+.time-card .label{font-size:12px;opacity:.8;margin-bottom:4px}
+.time-card .time{font-size:20px;font-weight:600}
+
+/* 数据卡片 */
+.data-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.data-card{background:#fff;border-radius:12px;padding:20px;display:flex;align-items:center;gap:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.data-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:bold}
+.data-icon.blue{background:#dbeafe;color:#2563eb}
+.data-icon.green{background:#dcfce7;color:#16a34a}
+.data-icon.orange{background:#ffedd5;color:#ea580c}
+.data-card h3{font-size:24px;font-weight:700}
+.data-card p{font-size:14px;color:#64748b}
+
+/* 订阅表格 */
+.card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.1);overflow:hidden}
+.card-header{padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.card-header h3{font-size:16px;font-weight:600}
+table{width:100%;border-collapse:collapse}
+th,td{padding:14px 20px;text-align:left;border-bottom:1px solid #e2e8f0;font-size:14px}
+th{background:#f8fafc;font-size:12px;font-weight:600;text-transform:uppercase;color:#64748b}
+tr:hover{background:#f8fafc}
+.badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500}
+.badge-green{background:#dcfce7;color:#16a34a}
+.badge-red{background:#fee2e2;color:#dc2626}
+.badge-blue{background:#dbeafe;color:#2563eb}
+.actions{display:flex;gap:6px}
+.actions button{padding:6px 10px;border:none;border-radius:6px;cursor:pointer;font-size:12px;transition:all 0.2s}
+.actions .edit{background:#dbeafe;color:#2563eb}
+.actions .edit:hover{background:#bfdbfe}
+.actions .pause{background:#fef3c7;color:#d97706}
+.actions .pause:hover{background:#fde68a}
+.actions .resume{background:#dcfce7;color:#16a34a}
+.actions .resume:hover{background:#bbf7d0}
+.actions .del{background:#fee2e2;color:#dc2626}
+.actions .del:hover{background:#fecaca}
+.empty{text-align:center;padding:60px 20px;color:#64748b}
+
+/* 模态框 */
+.modal{position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:1000;padding:20px}
+.modal-box{background:#fff;border-radius:16px;width:100%;max-width:500px;max-height:90vh;overflow-y:auto}
+.modal-header{padding:20px;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+.modal-header h3{font-size:18px;font-weight:600}
+.modal-close{width:32px;height:32px;border:none;background:#f1f5f9;border-radius:8px;cursor:pointer;font-size:18px;transition:all 0.2s}
+.modal-close:hover{background:#e2e8f0}
+.modal-body{padding:20px}
+.modal-footer{padding:16px 20px;border-top:1px solid #e2e8f0;display:flex;justify-content:flex-end;gap:12px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+/* Toast通知 */
+.toast{position:fixed;bottom:20px;right:20px;left:20px;max-width:400px;margin:0 auto;padding:16px 20px;border-radius:12px;color:#fff;font-weight:500;z-index:2000;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+.toast.ok{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.toast.err{background:linear-gradient(135deg,#ef4444,#dc2626)}
+
+/* 响应式设计 */
+@media(max-width:1024px){
+    .sidebar{width:200px}
+    .main-content{margin-left:200px}
+}
+@media(max-width:768px){
+    .sidebar{width:60px}
+    .sidebar-header h1,.nav-item .label,.user-name,.user-role,.logout-btn span{display:none}
+    .sidebar-header{padding:15px}
+    .sidebar-nav{padding:10px 0}
+    .nav-item{padding:12px;justify-content:center}
+    .sidebar-footer{padding:15px}
+    .user-info{justify-content:center}
+    .user-name,.user-role{display:none}
+    .logout-btn span{display:none}
+    .main-content{margin-left:60px;padding:15px}
+    .time-cards,.data-cards{grid-template-columns:1fr}
+    .form-row{grid-template-columns:1fr}
+    th,td{padding:10px 12px;font-size:13px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+    <div v-if="checking" class="loading">
+        <div class="spinner"></div>
+        <p>加载中...</p>
+    </div>
+    
+    <div v-else-if="needLogin && !logged" class="login">
+        <div class="login-box">
+            <h1>Cloudflare Light Subnotify</h1>
+            <p>请输入管理员账号和密码登录</p>
+            <div class="form-group">
+                <label>用户名</label>
+                <input v-model="username" type="text" placeholder="请输入用户名" @keyup.enter="doLogin">
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input v-model="pwd" type="password" placeholder="请输入密码" @keyup.enter="doLogin">
+            </div>
+            <button class="btn btn-primary" @click="doLogin" :disabled="logining">
+                {{ logining ? '登录中...' : '登录' }}
+            </button>
+            <div v-if="loginErr" class="error">{{ loginErr }}</div>
+        </div>
+    </div>
+    
+    <div v-else class="app-container">
+        <!-- 左侧导航 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>Light Subnotify</h1>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <div class="nav-item" :class="{active: currentPage === 'dashboard'}" @click="currentPage = 'dashboard'">
+                    <span class="icon">📊</span>
+                    <span class="label">数据表盘</span>
+                </div>
+                <div class="nav-item" :class="{active: currentPage === 'subscriptions'}" @click="currentPage = 'subscriptions'">
+                    <span class="icon">📋</span>
+                    <span class="label">订阅管理</span>
+                </div>
+                <div class="nav-item" :class="{active: currentPage === 'settings'}" @click="currentPage = 'settings'">
+                    <span class="icon">⚙️</span>
+                    <span class="label">系统设置</span>
+                </div>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div class="user-avatar">{{ username ? username.charAt(0).toUpperCase() : 'A' }}</div>
+                    <div>
+                        <div class="user-name">{{ username || '管理员' }}</div>
+                        <div class="user-role">系统管理员</div>
+                    </div>
+                </div>
+                <button class="logout-btn" @click="doLogout">
+                    <span>退出登录</span>
+                </button>
+            </div>
+        </aside>
+        
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 数据表盘页面 -->
+            <div v-if="currentPage === 'dashboard'">
+                <div class="page-header">
+                    <h2>数据表盘</h2>
+                </div>
+                
+                <div class="notice-card">
+                    <div class="notice-icon">💡</div>
+                    <div class="notice-text">温馨提示：建议您先把设备时间进行一次同步更新再进行操作，以确保时间显示准确。</div>
+                </div>
+                
+                <div class="time-cards">
+                    <div class="time-card utc">
+                        <div class="label">世界协调时 UTC</div>
+                        <div class="time">{{ utcTime }}</div>
+                    </div>
+                    <div class="time-card cst">
+                        <div class="label">北京时间 CST</div>
+                        <div class="time">{{ cstTime }}</div>
+                    </div>
+                    <div class="time-card et">
+                        <div class="label">美国东部 ET</div>
+                        <div class="time">{{ etTime }}</div>
+                    </div>
+                </div>
+                
+                <div class="data-cards">
+                    <div class="data-card">
+                        <div class="data-icon blue">📋</div>
+                        <div>
+                            <h3>{{ subs.length }}</h3>
+                            <p>总订阅</p>
+                        </div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-icon green">✅</div>
+                        <div>
+                            <h3>{{ active.length }}</h3>
+                            <p>订阅中</p>
+                        </div>
+                    </div>
+                    <div class="data-card">
+                        <div class="data-icon orange">⏸️</div>
+                        <div>
+                            <h3>{{ paused.length }}</h3>
+                            <p>已停止</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 订阅管理页面 -->
+            <div v-if="currentPage === 'subscriptions'">
+                <div class="page-header">
+                    <h2>订阅管理</h2>
+                    <button class="btn btn-primary" @click="openAdd">+ 新建订阅</button>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3>订阅列表</h3>
+                        <button class="btn btn-secondary" @click="fetchSubs">刷新</button>
+                    </div>
+                    
+                    <table v-if="subs.length">
+                        <thead>
+                            <tr>
+                                <th>序号</th>
+                                <th>名称</th>
+                                <th>内容</th>
+                                <th>周期</th>
+                                <th>时区</th>
+                                <th>下次通知</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="(s, i) in subs" :key="s.id">
+                                <td>{{ i + 1 }}</td>
+                                <td>{{ s.name }}</td>
+                                <td>{{ s.content }}</td>
+                                <td>{{ cycleLabel(s) }}</td>
+                                <td>{{ tzLabel(s.timezone) }}</td>
+                                <td>{{ s.next_notify_date }} {{ s.cycle_hour || '09' }}:{{ s.cycle_minute || '00' }}</td>
+                                <td>
+                                    <span class="badge" :class="s.is_active ? 'badge-green' : 'badge-red'">
+                                        {{ s.is_active ? '活跃' : '暂停' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="actions">
+                                        <button class="edit" @click="openEdit(s)">编辑</button>
+                                        <button :class="s.is_active ? 'pause' : 'resume'" @click="toggle(s)">
+                                            {{ s.is_active ? '暂停' : '恢复' }}
+                                        </button>
+                                        <button class="del" @click="del(s.id)">删除</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div v-else class="empty">
+                        <p>暂无订阅数据</p>
+                        <button class="btn btn-primary" @click="openAdd" style="margin-top: 12px;">添加第一个订阅</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 系统设置页面 -->
+            <div v-if="currentPage === 'settings'">
+                <div class="page-header">
+                    <h2>系统设置</h2>
+                </div>
+                
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h3>Telegram Bot 设置</h3>
+                        <button class="btn btn-secondary" @click="testBot">连通性测试</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Bot Token</label>
+                            <input v-model="telegramSettings.bot_token" type="text" placeholder="请输入Telegram Bot Token">
+                        </div>
+                        <div class="form-group">
+                            <label>Chat ID</label>
+                            <input v-model="telegramSettings.chat_id" type="text" placeholder="请输入接收通知的Chat ID">
+                        </div>
+                        <button class="btn btn-primary" @click="saveTelegramSettings">保存设置</button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3>通知格式设置</h3>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>通知标题</label>
+                            <input v-model="notifySettings.title" type="text" placeholder="请输入通知标题">
+                        </div>
+                        <div class="form-group">
+                            <label>预览效果</label>
+                            <div style="background: #f8fafc; padding: 16px; border-radius: 8px; font-size: 14px; white-space: pre-line; border: 1px solid #e2e8f0;">
+                                {{ notifySettings.title || '订阅到期提醒' }}
+
+【名称】示例订阅
+【内容】这是订阅内容示例
+【周期】每周五 14:30
+【时区】北京时间 UTC+8
+【下次通知】2024-01-12 14:30</div>
+                        </div>
+                        <button class="btn btn-primary" @click="saveNotifySettings">保存设置</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- 订阅编辑模态框 -->
+    <div v-if="modal" class="modal" @click.self="modal = false">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>{{ editId ? '编辑订阅' : '新建订阅' }}</h3>
+                <button class="modal-close" @click="modal = false">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>名称 *</label>
+                    <input v-model="form.name" type="text" placeholder="请输入订阅名称">
+                </div>
+                <div class="form-group">
+                    <label>内容 *</label>
+                    <textarea v-model="form.content" placeholder="请输入订阅内容"></textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>周期类型 *</label>
+                        <select v-model="form.cycle_type">
+                            <option value="daily">每日</option>
+                            <option value="weekly">每周</option>
+                            <option value="monthly">每月</option>
+                            <option value="yearly">每年</option>
+                            <option value="specific">指定日期</option>
+                        </select>
+                    </div>
+                    <div class="form-group" v-if="form.cycle_type !== 'daily'">
+                        <label>{{ cycleValueLabel }}</label>
+                        <input v-if="form.cycle_type === 'weekly'" v-model="form.cycle_value" type="number" min="1" max="7" placeholder="1-7 (周一到周日)">
+                        <input v-else-if="form.cycle_type === 'monthly'" v-model="form.cycle_value" type="number" min="1" max="28" placeholder="1-28">
+                        <input v-else-if="form.cycle_type === 'yearly'" v-model="form.cycle_value" type="text" placeholder="MM-DD (如 12-25)">
+                        <input v-else-if="form.cycle_type === 'specific'" v-model="form.cycle_value" type="date">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>通知小时 (0-23)</label>
+                        <input v-model="form.cycle_hour" type="number" min="0" max="23" placeholder="09">
+                    </div>
+                    <div class="form-group">
+                        <label>通知分钟</label>
+                        <select v-model="form.cycle_minute">
+                            <option value="00">00</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                            <option value="30">30</option>
+                            <option value="40">40</option>
+                            <option value="50">50</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>时区 *</label>
+                    <select v-model="form.timezone">
+                        <option value="UTC">世界协调时 UTC</option>
+                        <option value="CST">北京时间 UTC+8</option>
+                        <option value="ET">美国东部 UTC-4</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @click="modal = false">取消</button>
+                <button class="btn btn-primary" @click="save">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast通知 -->
+    <div v-if="toast.show" class="toast" :class="toast.type">
+        {{ toast.msg }}
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const { createApp, ref, computed, onMounted, watch } = Vue;
+
+createApp({
+    setup() {
+        // 状态
+        const checking = ref(true);
+        const needLogin = ref(false);
+        const logged = ref(false);
+        const username = ref('');
+        const pwd = ref('');
+        const logining = ref(false);
+        const loginErr = ref('');
+        const currentPage = ref('dashboard');
+        
+        // 数据
+        const subs = ref([]);
+        const loading = ref(false);
+        const modal = ref(false);
+        const editId = ref(null);
+        const form = ref({
+            name: '',
+            content: '',
+            cycle_type: 'daily',
+            cycle_value: '',
+            cycle_hour: '09',
+            cycle_minute: '00',
+            timezone: 'UTC'
+        });
+        
+        // 时间
+        const utcTime = ref('');
+        const cstTime = ref('');
+        const etTime = ref('');
+        
+        // 设置
+        const notifySettings = ref({ title: '订阅到期提醒' });
+        const telegramSettings = ref({ bot_token: '', chat_id: '' });
+        
+        // Toast
+        const toast = ref({ show: false, msg: '', type: 'ok' });
+        
+        // 计算属性
+        const active = computed(() => subs.value.filter(s => s.is_active));
+        const paused = computed(() => subs.value.filter(s => !s.is_active));
+        
+        const cycleValueLabel = computed(() => {
+            const labels = {
+                weekly: '星期几 (1-7)',
+                monthly: '日期 (1-28)',
+                yearly: '日期 (MM-DD)',
+                specific: '指定日期'
+            };
+            return labels[form.value.cycle_type] || '';
+        });
+        
+        // API调用
+        const api = async (url, options = {}) => {
+            const token = localStorage.getItem('token');
+            const headers = { 'Content-Type': 'application/json' };
+            if (token) headers['Authorization'] = 'Bearer ' + token;
+            
+            const res = await fetch(url, { ...options, headers });
+            if (res.status === 401) {
+                logged.value = false;
+                localStorage.removeItem('token');
+                throw new Error('401');
+            }
+            return res;
+        };
+        
+        // 显示Toast
+        const show = (msg, type = 'ok') => {
+            toast.value = { show: true, msg, type };
+            setTimeout(() => toast.value.show = false, 3000);
+        };
+        
+        // 检查认证状态
+        const check = async () => {
+            try {
+                const r = await api('/api/auth/status');
+                const d = await r.json();
+                needLogin.value = d.requireAuth;
+                
+                if (!d.requireAuth) {
+                    logged.value = true;
+                } else {
+                    const token = localStorage.getItem('token');
+                    if (token) {
+                        const vr = await api('/api/auth/verify', {
+                            method: 'POST',
+                            body: JSON.stringify({ token })
+                        });
+                        const vd = await vr.json();
+                        logged.value = vd.valid;
+                    }
+                }
+            } catch (e) {}
+            checking.value = false;
+        };
+        
+        // 登录
+        const doLogin = async () => {
+            if (!username.value || !pwd.value) {
+                loginErr.value = '请输入用户名和密码';
+                return;
+            }
+            logining.value = true;
+            loginErr.value = '';
+            try {
+                const r = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username.value, password: pwd.value })
+                });
+                const d = await r.json();
+                if (d.success) {
+                    localStorage.setItem('token', d.token);
+                    logged.value = true;
+                    fetchSubs();
+                } else {
+                    loginErr.value = d.error || '登录失败';
+                }
+            } catch (e) {
+                loginErr.value = '网络错误';
+            }
+            logining.value = false;
+        };
+        
+        // 退出登录
+        const doLogout = () => {
+            localStorage.removeItem('token');
+            logged.value = false;
+            username.value = '';
+            pwd.value = '';
+        };
+        
+        // 获取订阅列表
+        const fetchSubs = async () => {
+            loading.value = true;
+            try {
+                const r = await api('/api/subscriptions');
+                if (r.ok) subs.value = await r.json();
+            } catch (e) {}
+            loading.value = false;
+        };
+        
+        // 打开添加对话框
+        const openAdd = () => {
+            editId.value = null;
+            form.value = {
+                name: '',
+                content: '',
+                cycle_type: 'daily',
+                cycle_value: '',
+                cycle_hour: '09',
+                cycle_minute: '00',
+                timezone: 'UTC'
+            };
+            modal.value = true;
+        };
+        
+        // 打开编辑对话框
+        const openEdit = (s) => {
+            editId.value = s.id;
+            form.value = {
+                name: s.name,
+                content: s.content,
+                cycle_type: s.cycle_type,
+                cycle_value: s.cycle_value,
+                cycle_hour: s.cycle_hour || '09',
+                cycle_minute: s.cycle_minute || '00',
+                timezone: s.timezone || 'UTC'
+            };
+            modal.value = true;
+        };
+        
+        // 保存订阅
+        const save = async () => {
+            try {
+                const url = editId.value ? '/api/subscriptions/' + editId.value : '/api/subscriptions';
+                const r = await api(url, {
+                    method: editId.value ? 'PUT' : 'POST',
+                    body: JSON.stringify(form.value)
+                });
+                if (r.ok) {
+                    show(editId.value ? '更新成功' : '添加成功');
+                    modal.value = false;
+                    fetchSubs();
+                } else {
+                    const d = await r.json();
+                    show(d.error || '操作失败', 'err');
+                }
+            } catch (e) {
+                if (e.message !== '401') show('操作失败', 'err');
+            }
+        };
+        
+        // 删除订阅
+        const del = async (id) => {
+            if (!confirm('确定删除此订阅？')) return;
+            try {
+                const r = await api('/api/subscriptions/' + id, { method: 'DELETE' });
+                if (r.ok) {
+                    show('删除成功');
+                    fetchSubs();
+                }
+            } catch (e) {
+                if (e.message !== '401') show('删除失败', 'err');
+            }
+        };
+        
+        // 切换订阅状态
+        const toggle = async (s) => {
+            try {
+                const r = await api('/api/subscriptions/' + s.id, {
+                    method: 'PUT',
+                    body: JSON.stringify({ is_active: !s.is_active })
+                });
+                if (r.ok) {
+                    show(s.is_active ? '已暂停' : '已恢复');
+                    fetchSubs();
+                }
+            } catch (e) {
+                if (e.message !== '401') show('操作失败', 'err');
+            }
+        };
+        
+        // 获取通知设置
+        const fetchNotifySettings = async () => {
+            try {
+                const r = await api('/api/notify-settings');
+                if (r.ok) {
+                    const d = await r.json();
+                    notifySettings.value = d;
+                }
+            } catch (e) {}
+        };
+        
+        // 保存通知设置
+        const saveNotifySettings = async () => {
+            try {
+                const r = await api('/api/notify-settings', {
+                    method: 'POST',
+                    body: JSON.stringify(notifySettings.value)
+                });
+                if (r.ok) {
+                    show('通知设置已保存');
+                }
+            } catch (e) {
+                if (e.message !== '401') show('保存失败', 'err');
+            }
+        };
+        
+        // 获取Telegram设置
+        const fetchTelegramSettings = async () => {
+            try {
+                const r = await api('/api/telegram-settings');
+                if (r.ok) {
+                    const d = await r.json();
+                    telegramSettings.value = d;
+                }
+            } catch (e) {}
+        };
+        
+        // 保存Telegram设置
+        const saveTelegramSettings = async () => {
+            try {
+                const r = await api('/api/telegram-settings', {
+                    method: 'POST',
+                    body: JSON.stringify(telegramSettings.value)
+                });
+                if (r.ok) {
+                    show('Telegram设置已保存');
+                }
+            } catch (e) {
+                if (e.message !== '401') show('保存失败', 'err');
+            }
+        };
+        
+        // 测试Bot
+        const testBot = async () => {
+            try {
+                const r = await api('/api/test-telegram', { method: 'POST' });
+                const d = await r.json();
+                if (d.success) {
+                    show('测试通知已发送，请检查Telegram', 'ok');
+                } else {
+                    show('测试失败: ' + (d.error || d.message || '未知错误'), 'err');
+                }
+            } catch (e) {
+                show('测试失败: 网络错误', 'err');
+            }
+        };
+        
+        // 更新时间显示
+        const updateTime = () => {
+            const now = new Date();
+            utcTime.value = formatDateTime(now, 0);
+            cstTime.value = formatDateTime(now, 8);
+            etTime.value = formatDateTime(now, -4);
+        };
+        
+        // 格式化日期时间
+        const formatDateTime = (date, offsetHours) => {
+            const local = new Date(date.getTime() + offsetHours * 3600000);
+            const year = local.getUTCFullYear();
+            const month = String(local.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(local.getUTCDate()).padStart(2, '0');
+            const hours = String(local.getUTCHours()).padStart(2, '0');
+            const minutes = String(local.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(local.getUTCSeconds()).padStart(2, '0');
+            return year + '-' + month + '-' + day + ' ' + hours + ':' + minutes + ':' + seconds;
+        };
+        
+        // 周期标签
+        const cycleLabel = (s) => {
+            const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+            let label = '';
+            switch (s.cycle_type) {
+                case 'daily':
+                    label = '每日';
+                    break;
+                case 'weekly':
+                    label = '每周' + days[parseInt(s.cycle_value) || 1];
+                    break;
+                case 'monthly':
+                    label = '每月' + parseInt(s.cycle_value || 1) + '日';
+                    break;
+                case 'yearly':
+                    const parts = (s.cycle_value || '1-1').split('-');
+                    label = '每年' + parseInt(parts[0]) + '月' + parseInt(parts[1]) + '日';
+                    break;
+                case 'specific':
+                    label = s.cycle_value;
+                    break;
+                default:
+                    label = s.cycle_type;
+            }
+            return label + ' ' + (s.cycle_hour || '09') + ':' + (s.cycle_minute || '00');
+        };
+        
+        // 时区标签
+        const tzLabel = (tz) => {
+            const labels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
+            return labels[tz] || tz;
+        };
+        
+        // 初始化
+        onMounted(() => {
+            check();
+            fetchSubs();
+            fetchNotifySettings();
+            fetchTelegramSettings();
+            updateTime();
+            setInterval(updateTime, 1000);
+        });
+        
+        return {
+            checking, needLogin, logged, username, pwd, logining, loginErr, currentPage,
+            subs, loading, modal, editId, form, toast,
+            notifySettings, telegramSettings,
+            utcTime, cstTime, etTime,
+            active, paused, cycleValueLabel,
+            doLogin, doLogout, openAdd, openEdit, save, del, toggle,
+            fetchSubs, saveNotifySettings, saveTelegramSettings, testBot,
+            cycleLabel, tzLabel
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>`;
+}

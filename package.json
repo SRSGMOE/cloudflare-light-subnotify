@@ -1,0 +1,24 @@
+{
+  "name": "cloudflare-light-subnotify",
+  "version": "2.0.0",
+  "description": "Cloudflare Light Subnotify - 轻量级订阅到期通知面板",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "animal-island-ui": "1.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "18.2.0",
+    "@types/react-dom": "18.2.0",
+    "@vitejs/plugin-react": "4.2.0",
+    "vite": "5.0.0",
+    "wrangler": "3.0.0"
+  }
+}
