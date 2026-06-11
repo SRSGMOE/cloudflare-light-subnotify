@@ -19,7 +19,8 @@ export default function App() {
 
   const checkAuthStatus = async () => {
     try {
-      const { requireAuth } = await checkAuth()
+      const response = await checkAuth()
+      const { requireAuth } = response
       setNeedLogin(requireAuth)
       
       if (!requireAuth) {
@@ -28,15 +29,21 @@ export default function App() {
       } else {
         const token = localStorage.getItem('token')
         if (token) {
-          const { valid } = await verifyToken(token)
-          setLogged(valid)
-          if (valid) {
-            fetchSubscriptions()
+          try {
+            const { valid } = await verifyToken(token)
+            setLogged(valid)
+            if (valid) {
+              fetchSubscriptions()
+            }
+          } catch (e) {
+            localStorage.removeItem('token')
           }
         }
       }
     } catch (error) {
       console.error('Auth check failed:', error)
+      // API 失败时显示登录页面
+      setNeedLogin(true)
     }
     setChecking(false)
   }
