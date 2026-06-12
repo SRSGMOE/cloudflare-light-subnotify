@@ -45,64 +45,202 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* 按钮样式 */
+/* 按钮样式 - 动物森林风格 */
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: 50px;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
   border: 2px solid transparent;
   font-family: inherit;
+  user-select: none;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* 主要按钮 - 立体效果 */
 .btn-primary {
   background: var(--animal-primary-color);
   color: #fff;
   border-color: var(--animal-primary-color);
+  box-shadow: 0 4px 0 0 var(--animal-primary-color-active);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: var(--animal-primary-color-hover);
   border-color: var(--animal-primary-color-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--animal-shadow-base);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 var(--animal-primary-color-active);
 }
 
+.btn-primary:active:not(:disabled) {
+  background: var(--animal-primary-color-active);
+  border-color: var(--animal-primary-color-active);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--animal-primary-color-active);
+}
+
+/* 次要按钮 - 立体效果 */
 .btn-secondary {
   background: var(--animal-bg-color);
   color: var(--animal-text-color);
   border-color: var(--animal-border-color);
+  box-shadow: 0 4px 0 0 var(--animal-border-color);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   color: var(--animal-primary-color);
   border-color: var(--animal-primary-color);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 var(--animal-border-color);
 }
 
+.btn-secondary:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--animal-border-color);
+}
+
+/* 危险按钮 - 立体效果 */
 .btn-danger {
   background: var(--animal-error-color);
   color: #fff;
   border-color: var(--animal-error-color);
+  box-shadow: 0 4px 0 0 var(--animal-error-color-active);
 }
 
-.btn-danger:hover {
+.btn-danger:hover:not(:disabled) {
   background: var(--animal-error-color-hover);
   border-color: var(--animal-error-color-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 var(--animal-error-color-active);
 }
 
+.btn-danger:active:not(:disabled) {
+  background: var(--animal-error-color-active);
+  border-color: var(--animal-error-color-active);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--animal-error-color-active);
+}
+
+/* 成功按钮 - 立体效果 */
+.btn-success {
+  background: var(--animal-success-color);
+  color: #fff;
+  border-color: var(--animal-success-color);
+  box-shadow: 0 4px 0 0 var(--animal-success-color-active);
+}
+
+.btn-success:hover:not(:disabled) {
+  background: var(--animal-success-color-hover);
+  border-color: var(--animal-success-color-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 var(--animal-success-color-active);
+}
+
+.btn-success:active:not(:disabled) {
+  background: var(--animal-success-color-active);
+  border-color: var(--animal-success-color-active);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--animal-success-color-active);
+}
+
+/* 警告按钮 - 立体效果 */
+.btn-warning {
+  background: var(--animal-warning-color);
+  color: var(--animal-text-color);
+  border-color: var(--animal-warning-color);
+  box-shadow: 0 4px 0 0 var(--animal-warning-color-active);
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: var(--animal-warning-color-hover);
+  border-color: var(--animal-warning-color-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 0 0 var(--animal-warning-color-active);
+}
+
+.btn-warning:active:not(:disabled) {
+  background: var(--animal-warning-color-active);
+  border-color: var(--animal-warning-color-active);
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 var(--animal-warning-color-active);
+}
+
+/* 小按钮 */
 .btn-sm {
-  padding: 6px 12px;
+  padding: 8px 16px;
   font-size: 12px;
+  box-shadow: 0 3px 0 0 var(--animal-border-color);
 }
 
+.btn-sm:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 0 0 var(--animal-border-color);
+}
+
+.btn-sm:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 0 var(--animal-border-color);
+}
+
+.btn-sm.btn-primary {
+  box-shadow: 0 3px 0 0 var(--animal-primary-color-active);
+}
+
+.btn-sm.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 0 0 var(--animal-primary-color-active);
+}
+
+.btn-sm.btn-danger {
+  box-shadow: 0 3px 0 0 var(--animal-error-color-active);
+}
+
+.btn-sm.btn-danger:hover:not(:disabled) {
+  box-shadow: 0 4px 0 0 var(--animal-error-color-active);
+}
+
+/* 块级按钮 */
 .btn-block {
   width: 100%;
+}
+
+/* 幽灵按钮 - 无背景 */
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--animal-text-color);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background: var(--animal-bg-color);
+  box-shadow: none;
+}
+
+/* 链接按钮 */
+.btn-link {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--animal-primary-color);
+  padding: 0;
+}
+
+.btn-link:hover:not(:disabled) {
+  color: var(--animal-primary-color-hover);
+  text-decoration: underline;
 }
 
 /* 输入框样式 */

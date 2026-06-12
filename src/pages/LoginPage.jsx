@@ -1,14 +1,14 @@
 import React, { useState } from 'react'
 import { login } from '../api'
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, showError }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async () => {
     if (!username || !password) {
-      alert('请输入用户名和密码')
+      showError('请输入用户名和密码')
       return
     }
 
@@ -19,10 +19,10 @@ export default function LoginPage({ onLogin }) {
         localStorage.setItem('token', result.token)
         onLogin()
       } else {
-        alert(result.error || '登录失败')
+        showError(result.error || '登录失败')
       }
     } catch (error) {
-      alert('网络错误')
+      showError('网络错误')
     }
     setLoading(false)
   }

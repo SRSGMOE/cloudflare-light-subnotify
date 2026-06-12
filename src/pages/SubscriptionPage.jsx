@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { createSubscription, updateSubscription, deleteSubscription } from '../api'
 
-export default function SubscriptionPage({ subscriptions, onRefresh }) {
+export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
   const [modalVisible, setModalVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -79,26 +79,26 @@ export default function SubscriptionPage({ subscriptions, onRefresh }) {
     if (!window.confirm('确定删除此订阅？')) return
     try {
       await deleteSubscription(id)
-      alert('删除成功')
+      showSuccess('删除成功')
       onRefresh()
     } catch (error) {
-      alert('删除失败')
+      showError('删除失败')
     }
   }
 
   const handleToggle = async (record) => {
     try {
       await updateSubscription(record.id, { is_active: !record.is_active })
-      alert(record.is_active ? '已暂停' : '已恢复')
+      showSuccess(record.is_active ? '已暂停' : '已恢复')
       onRefresh()
     } catch (error) {
-      alert('操作失败')
+      showError('操作失败')
     }
   }
 
   const handleSubmit = async () => {
     if (!form.name || !form.content) {
-      alert('请填写名称和内容')
+      showError('请填写名称和内容')
       return
     }
 
@@ -106,15 +106,15 @@ export default function SubscriptionPage({ subscriptions, onRefresh }) {
     try {
       if (editingId) {
         await updateSubscription(editingId, form)
-        alert('更新成功')
+        showSuccess('更新成功')
       } else {
         await createSubscription(form)
-        alert('添加成功')
+        showSuccess('添加成功')
       }
       setModalVisible(false)
       onRefresh()
     } catch (error) {
-      alert('操作失败')
+      showError('操作失败')
     }
     setLoading(false)
   }

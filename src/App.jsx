@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { checkAuth, verifyToken, getSubscriptions } from './api'
+import { useTheme } from './context/ThemeContext.jsx'
+import { ToastContainer } from './components/Toast.jsx'
+import useToast from './hooks/useToast.js'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -11,6 +14,8 @@ export default function App() {
   const [logged, setLogged] = useState(false)
   const [currentPage, setCurrentPage] = useState('dashboard')
   const [subscriptions, setSubscriptions] = useState([])
+  const { currentTheme, setTheme, themes } = useTheme()
+  const { toasts, removeToast, showSuccess, showError } = useToast()
 
   useEffect(() => {
     checkAuthStatus()
@@ -84,7 +89,12 @@ export default function App() {
   }
 
   if (needLogin && !logged) {
-    return <LoginPage onLogin={handleLogin} />
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} showError={showError} />
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </>
+    )
   }
 
   const menuItems = [
@@ -152,8 +162,58 @@ export default function App() {
           ))}
         </nav>
         
+        {/* 主题切换 */}
         <div style={{
-          padding: '20px',
+          padding: '16px 20px',
+          borderTop: '2px solid var(--animal-border-color-light)',
+        }}>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--animal-text-color-secondary)',
+            marginBottom: '8px',
+          }}>
+            主题设置
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {Object.entries(themes).map(([key, theme]) => (
+              <div
+                key={key}
+                onClick={() => setTheme(key)}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: 'var(--animal-border-radius-sm)',
+                  border: currentTheme === key 
+                    ? '2px solid var(--animal-primary-color)' 
+                    : '2px solid var(--animal-border-color)',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  background: currentTheme === key ? 'var(--animal-primary-color-bg)' : 'transparent',
+                }}
+              >
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: `linear-gradient(135deg, ${theme.preview.primary}, ${theme.preview.bg})`,
+                  margin: '0 auto 4px',
+                  border: '1px solid var(--animal-border-color-light)',
+                }} />
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: 500,
+                  color: currentTheme === key ? 'var(--animal-primary-color)' : 'var(--animal-text-color-secondary)',
+                }}>
+                  {theme.name}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div style={{
+          padding: '16px 20px',
           borderTop: '2px solid var(--animal-border-color-light)',
         }}>
           <div style={{
@@ -204,14 +264,21 @@ export default function App() {
         {currentPage === 'subscriptions' && (
           <SubscriptionPage 
             subscriptions={subscriptions} 
-            onRefresh={fetchSubscriptions} 
+            onRefresh={fetchSubscriptions}
+            showSuccess={showSuccess}
+            showError={showError}
           />
         )}
         
         {currentPage === 'settings' && (
-          <SettingsPage />
+          <SettingsPage 
+            showSuccess={showSuccess}
+            showError={showError}
+          />
         )}
       </main>
+      
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   )
 }

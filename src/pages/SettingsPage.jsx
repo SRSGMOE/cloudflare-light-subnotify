@@ -8,7 +8,7 @@ import {
   testNotify
 } from '../api'
 
-export default function SettingsPage() {
+export default function SettingsPage({ showSuccess, showError }) {
   const [telegramSettings, setTelegramSettings] = useState({
     bot_token: '',
     chat_id: '',
@@ -16,7 +16,8 @@ export default function SettingsPage() {
   const [notifySettings, setNotifySettings] = useState({
     title: '订阅到期提醒',
   })
-  const [loading, setLoading] = useState(false)
+  const [telegramLoading, setTelegramLoading] = useState(false)
+  const [notifyLoading, setNotifyLoading] = useState(false)
   const [testLoading, setTestLoading] = useState(false)
   const [notifyTestLoading, setNotifyTestLoading] = useState(false)
 
@@ -38,14 +39,14 @@ export default function SettingsPage() {
   }
 
   const handleSaveTelegram = async () => {
-    setLoading(true)
+    setTelegramLoading(true)
     try {
       await saveTelegramSettings(telegramSettings)
-      alert('Telegram设置已保存')
+      showSuccess('Telegram设置已保存')
     } catch (error) {
-      alert('保存失败')
+      showError('保存失败')
     }
-    setLoading(false)
+    setTelegramLoading(false)
   }
 
   const handleTestTelegram = async () => {
@@ -53,25 +54,25 @@ export default function SettingsPage() {
     try {
       const result = await testTelegram()
       if (result.success) {
-        alert('测试通知已发送，请检查Telegram')
+        showSuccess('测试通知已发送，请检查Telegram')
       } else {
-        alert('测试失败: ' + (result.error || '未知错误'))
+        showError('测试失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
-      alert('测试失败: 网络错误')
+      showError('测试失败: 网络错误')
     }
     setTestLoading(false)
   }
 
   const handleSaveNotify = async () => {
-    setLoading(true)
+    setNotifyLoading(true)
     try {
       await saveNotifySettings(notifySettings)
-      alert('通知设置已保存')
+      showSuccess('通知设置已保存')
     } catch (error) {
-      alert('保存失败')
+      showError('保存失败')
     }
-    setLoading(false)
+    setNotifyLoading(false)
   }
 
   const handleTestNotify = async () => {
@@ -79,12 +80,12 @@ export default function SettingsPage() {
     try {
       const result = await testNotify({ title: notifySettings.title })
       if (result.success) {
-        alert('测试通知已发送，请检查Telegram')
+        showSuccess('测试通知已发送，请检查Telegram')
       } else {
-        alert('测试失败: ' + (result.error || '未知错误'))
+        showError('测试失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
-      alert('测试失败: 网络错误')
+      showError('测试失败: 网络错误')
     }
     setNotifyTestLoading(false)
   }
@@ -114,7 +115,11 @@ export default function SettingsPage() {
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
             Telegram Bot 设置
           </h3>
-          <button className="btn btn-secondary" onClick={handleTestTelegram} disabled={testLoading}>
+          <button 
+            className="btn btn-secondary" 
+            onClick={handleTestTelegram} 
+            disabled={testLoading}
+          >
             {testLoading ? '测试中...' : '🔗 连通性测试'}
           </button>
         </div>
@@ -137,8 +142,12 @@ export default function SettingsPage() {
               placeholder="请输入接收通知的Chat ID"
             />
           </div>
-          <button className="btn btn-primary" onClick={handleSaveTelegram} disabled={loading}>
-            {loading ? '保存中...' : '💾 保存设置'}
+          <button 
+            className="btn btn-primary" 
+            onClick={handleSaveTelegram} 
+            disabled={telegramLoading}
+          >
+            {telegramLoading ? '保存中...' : '💾 保存设置'}
           </button>
         </div>
       </div>
@@ -175,10 +184,18 @@ export default function SettingsPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="btn btn-primary" onClick={handleSaveNotify} disabled={loading}>
-              {loading ? '保存中...' : '💾 保存设置'}
+            <button 
+              className="btn btn-primary" 
+              onClick={handleSaveNotify} 
+              disabled={notifyLoading}
+            >
+              {notifyLoading ? '保存中...' : '💾 保存设置'}
             </button>
-            <button className="btn btn-secondary" onClick={handleTestNotify} disabled={notifyTestLoading}>
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleTestNotify} 
+              disabled={notifyTestLoading}
+            >
               {notifyTestLoading ? '发送中...' : '📤 测试通知'}
             </button>
           </div>
