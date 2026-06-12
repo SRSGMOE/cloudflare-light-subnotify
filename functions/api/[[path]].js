@@ -272,6 +272,11 @@ export async function onRequest(context) {
     }
     
     // 手动触发通知检查
+    // 安全机制：通过随机路径前缀访问
+    // 完整路径：/{API_PREFIX}/api/check-notifications
+    // API_PREFIX 在 Pages 环境变量中配置（Secret 类型）
+    //
+    // 中间件会自动移除随机前缀，此代码只需处理实际的 check-notifications 请求
     if (path === '/check-notifications' && method === 'POST') {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
