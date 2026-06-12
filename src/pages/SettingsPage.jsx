@@ -95,11 +95,11 @@ export default function SettingsPage({ showSuccess, showError }) {
 
   const notifyPreview = `📢 ${notifySettings.title || '订阅到期提醒'}
 
-📦 订阅名称：示例订阅
-🔖 订阅内容：这是订阅内容示例
-🌏 当前时区：北京时间 UTC+8
-📮 通知周期：每周五 14:30
-📆 下次通知：2024-01-12 14:30`
+📦 - 订阅名称：示例订阅
+🔖 - 订阅内容：这是订阅内容示例
+🌏 - 当前时区：北京时间 UTC+8
+📮 - 通知周期：每周五 14:30
+📆 - 下次通知：2024-01-12 14:30`
 
   return (
     <div>

@@ -257,11 +257,11 @@ export async function onRequest(context) {
         return json({ success: false, error: '请先配置Telegram Bot' });
       }
       const message = '📢 ' + title + String.fromCharCode(10) + String.fromCharCode(10) + 
-        '📦 订阅名称：示例订阅' + String.fromCharCode(10) +
-        '🔖 订阅内容：这是订阅内容示例' + String.fromCharCode(10) +
-        '🌏 当前时区：北京时间 UTC+8' + String.fromCharCode(10) +
-        '📮 通知周期：每周五 14:30' + String.fromCharCode(10) +
-        '📆 下次通知：2024-01-12 14:30';
+        '📦 - 订阅名称：示例订阅' + String.fromCharCode(10) +
+        '🔖 - 订阅内容：这是订阅内容示例' + String.fromCharCode(10) +
+        '🌏 - 当前时区：北京时间 UTC+8' + String.fromCharCode(10) +
+        '📮 - 通知周期：每周五 14:30' + String.fromCharCode(10) +
+        '📆 - 下次通知：2024-01-12 14:30';
       const res = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -335,11 +335,11 @@ export async function onRequest(context) {
           }
           
           const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
-            '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
-            '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
-            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
-            '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
-            '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+            '📦 - 订阅名称：' + sub.name + String.fromCharCode(10) +
+            '🔖 - 订阅内容：' + sub.content + String.fromCharCode(10) +
+            '🌏 - 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
+            '📮 - 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
+            '📆 - 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
           
           // 发送通知
           await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {

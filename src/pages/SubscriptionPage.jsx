@@ -243,8 +243,8 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
 
       {/* 模态框 */}
       {modalVisible && (
-        <div className="modal-overlay" onClick={() => setModalVisible(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-overlay">
+          <div className="modal-content">
             <div className="modal-header">
               <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
                 {editingId ? '编辑订阅' : '新建订阅'}
