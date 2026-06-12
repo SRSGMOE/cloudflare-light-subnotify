@@ -122,7 +122,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
   }
 
   const handleToggle = (record) => {
-    const action = record.is_active ? '暂停' : '恢复'
+    const action = record.is_active ? '停止' : '恢复'
     showConfirm(
       `确认${action}`,
       `确定要${action}订阅「${record.name}」吗？`,
@@ -188,7 +188,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center',
-        marginBottom: '24px',
+        marginBottom: '16px',
       }}>
         <h2 style={{ 
           fontSize: '24px', 
@@ -198,17 +198,37 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         }}>
           订阅管理
         </h2>
+        <button className="btn btn-primary" onClick={handleAdd}>
+          {currentTheme !== 'animal-forest' && <span>➕</span>}
+          添加订阅
+        </button>
       </div>
       
-      {/* 订阅卡片列表 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* 订阅卡片列表 - 横向网格排列 */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+        gap: '16px',
+        marginBottom: '24px',
+      }}>
         {subscriptions.map((record, index) => (
           <div 
             key={record.id} 
             className="card"
             style={{
               border: '2px solid var(--animal-border-color-light)',
-              transition: 'all 0.2s',
+              transition: 'all 0.3s ease',
+              cursor: 'default',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-4px)'
+              e.currentTarget.style.boxShadow = 'var(--animal-shadow-lg)'
+              e.currentTarget.style.borderColor = 'var(--animal-primary-color)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)'
+              e.currentTarget.style.boxShadow = 'var(--animal-shadow-base)'
+              e.currentTarget.style.borderColor = 'var(--animal-border-color-light)'
             }}
           >
             <div style={{ padding: '20px' }}>
@@ -332,7 +352,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   onClick={() => handleEdit(record)}
                 >
                   {currentTheme === 'animal-forest' ? (
-                    <Icon name="icon-diy" size={14} />
+                    <Icon item={1} size={14} />
                   ) : (
                     <span>✏️</span>
                   )}
@@ -347,18 +367,18 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   }}
                 >
                   {currentTheme === 'animal-forest' ? (
-                    <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
+                    <Icon item={record.is_active ? 387 : 385} size={14} />
                   ) : (
-                    <span>{record.is_active ? '⏸️' : '▶️'}</span>
+                    <span>{record.is_active ? '⏹️' : '▶️'}</span>
                   )}
-                  {record.is_active ? '暂停' : '恢复'}
+                  {record.is_active ? '停止' : '恢复'}
                 </button>
                 <button 
                   className="btn btn-danger btn-sm" 
                   onClick={() => handleDelete(record)}
                 >
                   {currentTheme === 'animal-forest' ? (
-                    <Icon item={474} size={14} />
+                    <Icon item={463} size={14} />
                   ) : (
                     <span>🗑️</span>
                   )}
@@ -368,40 +388,22 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
             </div>
           </div>
         ))}
-        
-        {/* 添加订阅按钮 */}
-        <div style={{ textAlign: 'center', padding: '24px' }}>
-          <button className="btn btn-primary" onClick={handleAdd}>
+      </div>
+      
+      {/* 空状态 */}
+      {subscriptions.length === 0 && (
+        <div className="card" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
+          <div style={{ marginBottom: '16px' }}>
             {currentTheme === 'animal-forest' ? (
-              <Icon item={478} size={18} />
+              <Icon name="icon-design" size={64} />
             ) : (
-              <span>➕</span>
+              <span style={{ fontSize: '64px' }}>📋</span>
             )}
-            添加订阅
-          </button>
-        </div>
-        
-        {/* 空状态 */}
-        {subscriptions.length === 0 && (
-          <div className="card" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
-            <div style={{ marginBottom: '16px' }}>
-              {currentTheme === 'animal-forest' ? (
-                <Icon name="icon-design" size={64} />
-              ) : (
-                <span style={{ fontSize: '64px' }}>📋</span>
-              )}
-            </div>
-            <p style={{ marginBottom: '16px', fontSize: '16px' }}>暂无订阅数据</p>
-            <button className="btn btn-primary" onClick={handleAdd}>
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={478} size={18} />
-              ) : (
-                <span>➕</span>
-              )}
-              添加订阅
-            </button>
           </div>
-        )}
+          <p style={{ marginBottom: '16px', fontSize: '16px' }}>暂无订阅数据</p>
+          <p style={{ fontSize: '14px', color: 'var(--animal-text-color-disabled)' }}>点击上方「添加订阅」按钮创建第一个订阅</p>
+        </div>
+      )}
       </div>
 
       {/* 编辑/新建订阅模态框 */}
