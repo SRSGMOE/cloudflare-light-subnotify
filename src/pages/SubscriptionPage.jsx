@@ -6,6 +6,10 @@ import { createSubscription, updateSubscription, deleteSubscription } from '../a
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
   const { currentTheme } = useTheme()
   const [modalVisible, setModalVisible] = useState(false)
+  const [confirmVisible, setConfirmVisible] = useState(false)
+  const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmTitle, setConfirmTitle] = useState('')
+  const [confirmMessage, setConfirmMessage] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
@@ -50,6 +54,29 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     return label + ' ' + (record.cycle_hour || '09') + ':' + (record.cycle_minute || '00')
   }
 
+  // 显示确认弹窗
+  const showConfirm = (title, message, action) => {
+    setConfirmTitle(title)
+    setConfirmMessage(message)
+    setConfirmAction(() => action)
+    setConfirmVisible(true)
+  }
+
+  // 执行确认操作
+  const handleConfirm = async () => {
+    if (confirmAction) {
+      await confirmAction()
+    }
+    setConfirmVisible(false)
+    setConfirmAction(null)
+  }
+
+  // 取消确认
+  const handleCancelConfirm = () => {
+    setConfirmVisible(false)
+    setConfirmAction(null)
+  }
+
   const handleAdd = () => {
     setEditingId(null)
     setForm({
@@ -78,48 +105,77 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     setModalVisible(true)
   }
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('确定删除此订阅？')) return
-    try {
-      await deleteSubscription(id)
-      showSuccess('删除成功')
-      onRefresh()
-    } catch (error) {
-      showError('删除失败')
-    }
+  const handleDelete = (record) => {
+    showConfirm(
+      '确认删除',
+      `确定要删除订阅「${record.name}」吗？此操作不可撤销。`,
+      async () => {
+        try {
+          await deleteSubscription(record.id)
+          showSuccess('删除成功')
+          onRefresh()
+        } catch (error) {
+          showError('删除失败')
+        }
+      }
+    )
   }
 
-  const handleToggle = async (record) => {
-    try {
-      await updateSubscription(record.id, { is_active: !record.is_active })
-      showSuccess(record.is_active ? '已暂停' : '已恢复')
-      onRefresh()
-    } catch (error) {
-      showError('操作失败')
-    }
+  const handleToggle = (record) => {
+    const action = record.is_active ? '暂停' : '恢复'
+    showConfirm(
+      `确认${action}`,
+      `确定要${action}订阅「${record.name}」吗？`,
+      async () => {
+        try {
+          await updateSubscription(record.id, { is_active: !record.is_active })
+          showSuccess(`已${action}`)
+          onRefresh()
+        } catch (error) {
+          showError('操作失败')
+        }
+      }
+    )
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!form.name || !form.content) {
       showError('请填写名称和内容')
       return
     }
 
-    setLoading(true)
-    try {
-      if (editingId) {
-        await updateSubscription(editingId, form)
-        showSuccess('更新成功')
-      } else {
-        await createSubscription(form)
-        showSuccess('添加成功')
+    const action = editingId ? '更新' : '创建'
+    showConfirm(
+      `确认${action}`,
+      `确定要${action}订阅「${form.name}」吗？`,
+      async () => {
+        setLoading(true)
+        try {
+          if (editingId) {
+            await updateSubscription(editingId, form)
+            showSuccess('更新成功')
+          } else {
+            await createSubscription(form)
+            showSuccess('添加成功')
+          }
+          setModalVisible(false)
+          onRefresh()
+        } catch (error) {
+          showError('操作失败')
+        }
+        setLoading(false)
       }
-      setModalVisible(false)
-      onRefresh()
-    } catch (error) {
-      showError('操作失败')
-    }
-    setLoading(false)
+    )
+  }
+
+  const handleCancelEdit = () => {
+    showConfirm(
+      '确认取消',
+      '确定要取消编辑吗？未保存的内容将丢失。',
+      () => {
+        setModalVisible(false)
+      }
+    )
   }
 
   const updateForm = (key, value) => {
@@ -144,83 +200,190 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         </h2>
       </div>
       
-      <div className="card">
-        {subscriptions.length > 0 ? (
-          <>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>序号</th>
-                  <th>名称</th>
-                  <th>内容</th>
-                  <th>周期</th>
-                  <th>时区</th>
-                  <th>下次通知</th>
-                  <th>状态</th>
-                  <th>操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subscriptions.map((record, index) => (
-                  <tr key={record.id}>
-                    <td>{index + 1}</td>
-                    <td>{record.name}</td>
-                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {record.content}
-                    </td>
-                    <td>{getCycleLabel(record)}</td>
-                    <td>{tzLabels[record.timezone] || record.timezone}</td>
-                    <td>{record.next_notify_date} {record.cycle_hour || '09'}:{record.cycle_minute || '00'}</td>
-                    <td>
-                      <span className={`tag ${record.is_active ? 'tag-green' : 'tag-red'}`}>
-                        {record.is_active ? '活跃' : '暂停'}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(record)}>
-                          {currentTheme === 'animal-forest' ? (
-                            <Icon name="icon-diy" size={14} />
-                          ) : (
-                            <span>✏️</span>
-                          )}
-                          编辑
-                        </button>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}>
-                          {currentTheme === 'animal-forest' ? (
-                            <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
-                          ) : (
-                            <span>{record.is_active ? '⏸️' : '▶️'}</span>
-                          )}
-                          {record.is_active ? '暂停' : '恢复'}
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(record.id)}>
-                          {currentTheme === 'animal-forest' ? (
-                            <Icon item={474} size={14} />
-                          ) : (
-                            <span>🗑️</span>
-                          )}
-                          删除
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <div style={{ padding: '16px 20px', borderTop: '2px solid var(--animal-border-color-light)', textAlign: 'center' }}>
-              <button className="btn btn-primary" onClick={handleAdd}>
-                {currentTheme === 'animal-forest' ? (
-                  <Icon item={478} size={18} />
-                ) : (
-                  <span>➕</span>
+      {/* 订阅卡片列表 */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {subscriptions.map((record, index) => (
+          <div 
+            key={record.id} 
+            className="card"
+            style={{
+              border: '2px solid var(--animal-border-color-light)',
+              transition: 'all 0.2s',
+            }}
+          >
+            <div style={{ padding: '20px' }}>
+              {/* 头部：序号和状态 */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '12px',
+              }}>
+                <div style={{
+                  background: 'var(--animal-primary-color-bg)',
+                  color: 'var(--animal-primary-color)',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}>
+                  #{index + 1}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '10px',
+                    height: '10px',
+                    borderRadius: '50%',
+                    background: record.is_active ? 'var(--animal-success-color)' : 'var(--animal-error-color)',
+                    boxShadow: record.is_active 
+                      ? '0 0 8px var(--animal-success-color)' 
+                      : '0 0 8px var(--animal-error-color)',
+                  }} />
+                  <span style={{
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    color: record.is_active ? 'var(--animal-success-color)' : 'var(--animal-error-color)',
+                  }}>
+                    {record.is_active ? 'Active' : 'Stop'}
+                  </span>
+                </div>
+              </div>
+              
+              {/* 内容区域 */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-text-color-secondary)',
+                    marginRight: '8px',
+                  }}>
+                    名称：
+                  </span>
+                  <span style={{ 
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--animal-text-color)',
+                  }}>
+                    {record.name}
+                  </span>
+                </div>
+                
+                <div style={{ marginBottom: '8px' }}>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-text-color-secondary)',
+                    marginRight: '8px',
+                  }}>
+                    周期：
+                  </span>
+                  <span style={{ 
+                    fontSize: '14px', 
+                    color: 'var(--animal-text-color)',
+                  }}>
+                    {getCycleLabel(record)}
+                  </span>
+                </div>
+
+                {record.content && (
+                  <div style={{ marginBottom: '8px' }}>
+                    <span style={{ 
+                      fontSize: '12px', 
+                      color: 'var(--animal-text-color-secondary)',
+                      marginRight: '8px',
+                    }}>
+                      内容：
+                    </span>
+                    <span style={{ 
+                      fontSize: '14px', 
+                      color: 'var(--animal-text-color-secondary)',
+                    }}>
+                      {record.content.length > 50 ? record.content.substring(0, 50) + '...' : record.content}
+                    </span>
+                  </div>
                 )}
-                添加订阅
-              </button>
+
+                <div>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-text-color-secondary)',
+                    marginRight: '8px',
+                  }}>
+                    时区：
+                  </span>
+                  <span style={{ 
+                    fontSize: '14px', 
+                    color: 'var(--animal-text-color-secondary)',
+                  }}>
+                    {tzLabels[record.timezone] || record.timezone}
+                  </span>
+                </div>
+              </div>
+              
+              {/* 操作按钮 */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'flex-end', 
+                gap: '12px',
+                borderTop: '1px solid var(--animal-border-color-light)',
+                paddingTop: '16px',
+              }}>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={() => handleEdit(record)}
+                >
+                  {currentTheme === 'animal-forest' ? (
+                    <Icon name="icon-diy" size={14} />
+                  ) : (
+                    <span>✏️</span>
+                  )}
+                  编辑
+                </button>
+                <button 
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => handleToggle(record)}
+                  style={{
+                    color: record.is_active ? 'var(--animal-warning-color)' : 'var(--animal-success-color)',
+                    borderColor: record.is_active ? 'var(--animal-warning-color)' : 'var(--animal-success-color)',
+                  }}
+                >
+                  {currentTheme === 'animal-forest' ? (
+                    <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
+                  ) : (
+                    <span>{record.is_active ? '⏸️' : '▶️'}</span>
+                  )}
+                  {record.is_active ? '暂停' : '恢复'}
+                </button>
+                <button 
+                  className="btn btn-danger btn-sm" 
+                  onClick={() => handleDelete(record)}
+                >
+                  {currentTheme === 'animal-forest' ? (
+                    <Icon item={474} size={14} />
+                  ) : (
+                    <span>🗑️</span>
+                  )}
+                  删除
+                </button>
+              </div>
             </div>
-          </>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
+          </div>
+        ))}
+        
+        {/* 添加订阅按钮 */}
+        <div style={{ textAlign: 'center', padding: '24px' }}>
+          <button className="btn btn-primary" onClick={handleAdd}>
+            {currentTheme === 'animal-forest' ? (
+              <Icon item={478} size={18} />
+            ) : (
+              <span>➕</span>
+            )}
+            添加订阅
+          </button>
+        </div>
+        
+        {/* 空状态 */}
+        {subscriptions.length === 0 && (
+          <div className="card" style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
             <div style={{ marginBottom: '16px' }}>
               {currentTheme === 'animal-forest' ? (
                 <Icon name="icon-design" size={64} />
@@ -228,7 +391,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                 <span style={{ fontSize: '64px' }}>📋</span>
               )}
             </div>
-            <p style={{ marginBottom: '16px' }}>暂无订阅数据</p>
+            <p style={{ marginBottom: '16px', fontSize: '16px' }}>暂无订阅数据</p>
             <button className="btn btn-primary" onClick={handleAdd}>
               {currentTheme === 'animal-forest' ? (
                 <Icon item={478} size={18} />
@@ -241,7 +404,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         )}
       </div>
 
-      {/* 模态框 */}
+      {/* 编辑/新建订阅模态框 */}
       {modalVisible && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -250,19 +413,8 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                 {editingId ? '编辑订阅' : '新建订阅'}
               </h3>
               <button 
-                onClick={() => setModalVisible(false)}
-                style={{
-                  background: 'var(--animal-bg-color)',
-                  border: '2px solid var(--animal-border-color)',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
+                className="modal-close"
+                onClick={handleCancelEdit}
               >
                 ×
               </button>
@@ -369,11 +521,48 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalVisible(false)}>
+              <button className="btn btn-secondary" onClick={handleCancelEdit}>
                 取消
               </button>
               <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
                 {loading ? '保存中...' : '保存'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 二次确认弹窗 */}
+      {confirmVisible && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                {confirmTitle}
+              </h3>
+              <button 
+                className="modal-close"
+                onClick={handleCancelConfirm}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <p style={{ 
+                fontSize: '14px', 
+                color: 'var(--animal-text-color)',
+                lineHeight: '1.6',
+                margin: 0,
+              }}>
+                {confirmMessage}
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={handleCancelConfirm}>
+                取消
+              </button>
+              <button className="btn btn-primary" onClick={handleConfirm}>
+                确认
               </button>
             </div>
           </div>
