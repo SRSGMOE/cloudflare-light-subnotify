@@ -73,55 +73,47 @@ export async function onRequest(context) {
     
     // Telegram设置
     if (path === '/telegram-settings' && method === 'GET') {
-      const { results: tokenResults } = await env.DB.prepare(
-        "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+      const { results } = await env.DB.prepare(
+        "SELECT value FROM notify_settings WHERE key='telegram_config'"
       ).all();
-      const { results: chatResults } = await env.DB.prepare(
-        "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
-      ).all();
-      return json({
-        bot_token: tokenResults.length > 0 ? tokenResults[0].value : '',
-        chat_id: chatResults.length > 0 ? chatResults[0].value : ''
-      });
+      if (results.length > 0) {
+        try {
+          return json(JSON.parse(results[0].value));
+        } catch (e) {
+          return json({ enabled: false, chats: [] });
+        }
+      }
+      return json({ enabled: false, chats: [] });
     }
     
     if (path === '/telegram-settings' && method === 'POST') {
       const body = await request.json();
-      if (body.bot_token !== undefined) {
-        await env.DB.prepare(
-          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_bot_token', ?)"
-        ).bind(body.bot_token).run();
-      }
-      if (body.chat_id !== undefined) {
-        await env.DB.prepare(
-          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_chat_id', ?)"
-        ).bind(body.chat_id).run();
-      }
-      // 注册命令和设置Webhook
-      if (body.bot_token) {
-        try {
-          await fetch('https://api.telegram.org/bot' + body.bot_token + '/setMyCommands', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              commands: [
-                { command: 'start', description: '开始使用' },
-                { command: 'help', description: '查看帮助' },
-                { command: 'list', description: '查看订阅列表' },
-                { command: 'today', description: '查看今日待通知' },
-                { command: 'status', description: '查看系统状态' }
-              ]
-            })
-          });
-          const host = request.headers.get('host') || '';
-          const protocol = request.headers.get('x-forwarded-proto') || 'https';
-          const webhookUrl = protocol + '://' + host + '/webhook/telegram';
-          await fetch('https://api.telegram.org/bot' + body.bot_token + '/setWebhook', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url: webhookUrl })
-          });
-        } catch (e) {}
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_config', ?)"
+      ).bind(JSON.stringify(body)).run();
+      
+      // 注册命令
+      if (body.enabled && body.chats && body.chats.length > 0) {
+        // 从第一个启用的chat获取bot token（需要额外存储）
+        // 这里暂时使用环境变量
+        const botToken = env.TELEGRAM_BOT_TOKEN || '';
+        if (botToken) {
+          try {
+            await fetch('https://api.telegram.org/bot' + botToken + '/setMyCommands', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                commands: [
+                  { command: 'start', description: '开始使用' },
+                  { command: 'help', description: '查看帮助' },
+                  { command: 'list', description: '查看订阅列表' },
+                  { command: 'today', description: '查看今日待通知' },
+                  { command: 'status', description: '查看系统状态' }
+                ]
+              })
+            });
+          } catch (e) {}
+        }
       }
       return json({ success: true });
     }
@@ -273,38 +265,24 @@ export async function onRequest(context) {
     
     // 邮件设置
     if (path === '/email-settings' && method === 'GET') {
-      const { results } = await env.DB.prepare("SELECT * FROM notify_settings WHERE key LIKE 'email_%'").all();
-      const settings = {};
-      results.forEach(r => {
-        settings[r.key.replace('email_', '')] = r.value;
-      });
-      return json({
-        enabled: settings.enabled === 'true',
-        smtp_host: settings.smtp_host || '',
-        smtp_port: settings.smtp_port || '465',
-        smtp_user: settings.smtp_user || '',
-        smtp_password: settings.smtp_password || '',
-        email_from: settings.email_from || '',
-        email_to: settings.email_to || '',
-      });
+      const { results } = await env.DB.prepare(
+        "SELECT value FROM notify_settings WHERE key='email_config'"
+      ).all();
+      if (results.length > 0) {
+        try {
+          return json(JSON.parse(results[0].value));
+        } catch (e) {
+          return json({ enabled: false, smtp: {}, receivers: [] });
+        }
+      }
+      return json({ enabled: false, smtp: {}, receivers: [] });
     }
     
     if (path === '/email-settings' && method === 'POST') {
       const body = await request.json();
-      const settings = {
-        'email_enabled': body.enabled ? 'true' : 'false',
-        'email_smtp_host': body.smtp_host || '',
-        'email_smtp_port': body.smtp_port || '465',
-        'email_smtp_user': body.smtp_user || '',
-        'email_smtp_password': body.smtp_password || '',
-        'email_email_from': body.email_from || '',
-        'email_email_to': body.email_to || '',
-      };
-      for (const [key, value] of Object.entries(settings)) {
-        await env.DB.prepare(
-          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES (?, ?)"
-        ).bind(key, value).run();
-      }
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('email_config', ?)"
+      ).bind(JSON.stringify(body)).run();
       return json({ success: true });
     }
     

@@ -1,7 +1,13 @@
-import React, { useState } from 'react'
-import { Icon } from 'animal-island-ui'
+import React, { useState, useEffect } from 'react'
+import { Icon, Checkbox } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
-import { createSubscription, updateSubscription, deleteSubscription } from '../api'
+import { 
+  createSubscription, 
+  updateSubscription, 
+  deleteSubscription,
+  getTelegramSettings,
+  getEmailSettings
+} from '../api'
 
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
   const { currentTheme } = useTheme()
@@ -12,6 +18,10 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
   const [confirmMessage, setConfirmMessage] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [loading, setLoading] = useState(false)
+  
+  // 通知途径选项
+  const [notifyChannels, setNotifyChannels] = useState([])
+  
   const [form, setForm] = useState({
     name: '',
     content: '',
@@ -20,6 +30,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     cycle_hour: '09',
     cycle_minute: '00',
     timezone: 'UTC',
+    notify_channels: [],
   })
 
   const cycleLabels = {
@@ -34,6 +45,53 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     'UTC': '世界协调时 UTC',
     'CST': '北京时间 UTC+8',
     'ET': '美国东部 UTC-4',
+  }
+
+  useEffect(() => {
+    fetchNotifyChannels()
+  }, [])
+
+  const fetchNotifyChannels = async () => {
+    try {
+      const [telegram, email] = await Promise.all([
+        getTelegramSettings(),
+        getEmailSettings()
+      ])
+      
+      const channels = []
+      
+      // Telegram 渠道
+      if (telegram.enabled && telegram.chats) {
+        telegram.chats.forEach((chat, index) => {
+          if (chat.enabled && chat.chat_id) {
+            channels.push({
+              key: `tg_${chat.id}`,
+              type: 'telegram',
+              label: chat.label ? `TG BOT（${chat.label}）` : `TG BOT #${index + 1}`,
+              chat_id: chat.chat_id,
+            })
+          }
+        })
+      }
+      
+      // 邮件渠道
+      if (email.enabled && email.receivers) {
+        email.receivers.forEach((receiver, index) => {
+          if (receiver.enabled && receiver.email) {
+            channels.push({
+              key: `email_${receiver.id}`,
+              type: 'email',
+              label: receiver.label ? `邮件（${receiver.label}）` : `邮件 #${index + 1}`,
+              email: receiver.email,
+            })
+          }
+        })
+      }
+      
+      setNotifyChannels(channels)
+    } catch (error) {
+      console.error('Fetch notify channels failed:', error)
+    }
   }
 
   const getCycleLabel = (record) => {
@@ -87,12 +145,18 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       cycle_hour: '09',
       cycle_minute: '00',
       timezone: 'UTC',
+      notify_channels: [],
     })
     setModalVisible(true)
   }
 
   const handleEdit = (record) => {
     setEditingId(record.id)
+    let channels = []
+    try {
+      channels = record.notify_channels ? JSON.parse(record.notify_channels) : []
+    } catch (e) {}
+    
     setForm({
       name: record.name,
       content: record.content,
@@ -101,6 +165,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       cycle_hour: record.cycle_hour || '09',
       cycle_minute: record.cycle_minute || '00',
       timezone: record.timezone || 'UTC',
+      notify_channels: channels,
     })
     setModalVisible(true)
   }
@@ -151,11 +216,16 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       async () => {
         setLoading(true)
         try {
+          const data = {
+            ...form,
+            notify_channels: JSON.stringify(form.notify_channels)
+          }
+          
           if (editingId) {
-            await updateSubscription(editingId, form)
+            await updateSubscription(editingId, data)
             showSuccess('更新成功')
           } else {
-            await createSubscription(form)
+            await createSubscription(data)
             showSuccess('添加成功')
           }
           setModalVisible(false)
@@ -182,6 +252,33 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     setForm(prev => ({ ...prev, [key]: value }))
   }
 
+  const toggleChannel = (channelKey) => {
+    setForm(prev => {
+      const channels = [...prev.notify_channels]
+      const index = channels.indexOf(channelKey)
+      if (index > -1) {
+        channels.splice(index, 1)
+      } else {
+        channels.push(channelKey)
+      }
+      return { ...prev, notify_channels: channels }
+    })
+  }
+
+  // 获取订阅的通知途径显示文本
+  const getNotifyChannelsText = (record) => {
+    try {
+      const channels = record.notify_channels ? JSON.parse(record.notify_channels) : []
+      if (channels.length === 0) return '未设置'
+      return channels.map(key => {
+        const channel = notifyChannels.find(c => c.key === key)
+        return channel ? channel.label : key
+      }).join('、')
+    } catch (e) {
+      return '未设置'
+    }
+  }
+
   return (
     <div>
       <h2 style={{ 
@@ -201,7 +298,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         </button>
       </div>
       
-      {/* 订阅卡片列表 - 横向网格排列 */}
+      {/* 订阅卡片列表 */}
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
@@ -215,7 +312,6 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
             style={{
               border: '2px solid var(--animal-border-color-light)',
               transition: 'all 0.3s ease',
-              cursor: 'default',
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = 'translateY(-4px)'
@@ -325,7 +421,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   </div>
                 )}
 
-                <div>
+                <div style={{ marginBottom: '8px' }}>
                   <span style={{ 
                     fontSize: '12px', 
                     color: 'var(--animal-text-color-secondary)',
@@ -338,6 +434,23 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                     color: 'var(--animal-text-color-secondary)',
                   }}>
                     {tzLabels[record.timezone] || record.timezone}
+                  </span>
+                </div>
+
+                <div>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-text-color-secondary)',
+                    marginRight: '8px',
+                  }}>
+                    途径：
+                  </span>
+                  <span style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-primary-color)',
+                    fontWeight: 500,
+                  }}>
+                    {getNotifyChannelsText(record)}
                   </span>
                 </div>
               </div>
@@ -411,7 +524,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       {/* 编辑/新建订阅模态框 */}
       {modalVisible && (
         <div className="modal-overlay">
-          <div className="modal-content">
+          <div className="modal-content" style={{ maxWidth: '600px' }}>
             <div className="modal-header">
               <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
                 {editingId ? '编辑订阅' : '新建订阅'}
@@ -522,6 +635,70 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   <option value="CST">北京时间 UTC+8</option>
                   <option value="ET">美国东部 UTC-4</option>
                 </select>
+              </div>
+
+              {/* 通知途径选择 */}
+              <div className="form-group">
+                <label className="form-label">
+                  通知途径
+                  <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400 }}>
+                    （可多选）
+                  </span>
+                </label>
+                <div style={{ 
+                  padding: '12px',
+                  background: 'var(--animal-bg-color)',
+                  borderRadius: 'var(--animal-border-radius-sm)',
+                  border: '1px solid var(--animal-border-color-light)',
+                }}>
+                  {notifyChannels.length === 0 ? (
+                    <div style={{ 
+                      color: 'var(--animal-text-color-disabled)', 
+                      fontSize: '14px',
+                      textAlign: 'center',
+                      padding: '8px',
+                    }}>
+                      暂无可用的通知途径，请先在系统设置中配置
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {notifyChannels.map(channel => (
+                        <label 
+                          key={channel.key}
+                          style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: '8px',
+                            cursor: 'pointer',
+                            padding: '6px 8px',
+                            borderRadius: '4px',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = 'var(--animal-primary-color-bg)'}
+                          onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={form.notify_channels.includes(channel.key)}
+                            onChange={() => toggleChannel(channel.key)}
+                            style={{ 
+                              width: '18px', 
+                              height: '18px',
+                              cursor: 'pointer',
+                            }}
+                          />
+                          <span style={{ 
+                            fontSize: '14px', 
+                            color: 'var(--animal-text-color)',
+                            fontWeight: form.notify_channels.includes(channel.key) ? 600 : 400,
+                          }}>
+                            {channel.type === 'telegram' ? '📱' : '📧'} {channel.label}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="modal-footer">
