@@ -4,37 +4,39 @@ import { useTheme } from '../context/ThemeContext.jsx'
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
+  testTelegram,
   getNotifySettings,
   saveNotifySettings,
   getEmailSettings,
-  saveEmailSettings
+  saveEmailSettings,
+  testEmail
 } from '../api'
 
 export default function SettingsPage({ showSuccess, showError }) {
   const { currentTheme } = useTheme()
   
-  // Telegram 总开关
+  // Telegram 设置
   const [telegramEnabled, setTelegramEnabled] = useState(false)
-  // Telegram Chat ID 列表
+  const [telegramBotToken, setTelegramBotToken] = useState('')
   const [telegramChats, setTelegramChats] = useState([
     { id: Date.now(), label: '', chat_id: '', enabled: false }
   ])
   const [telegramLoading, setTelegramLoading] = useState(false)
+  const [testingChatId, setTestingChatId] = useState(null)
   
-  // 邮件总开关
+  // 邮件设置
   const [emailEnabled, setEmailEnabled] = useState(false)
-  // 邮件 SMTP 设置
   const [emailSmtp, setEmailSmtp] = useState({
     smtp_host: '',
     smtp_port: '465',
     smtp_user: '',
     smtp_password: '',
   })
-  // 邮件收件人列表
   const [emailReceivers, setEmailReceivers] = useState([
     { id: Date.now(), label: '', email: '', enabled: false }
   ])
   const [emailLoading, setEmailLoading] = useState(false)
+  const [testingEmailId, setTestingEmailId] = useState(null)
   
   // 通知标题设置
   const [notifySettings, setNotifySettings] = useState({
@@ -51,11 +53,12 @@ export default function SettingsPage({ showSuccess, showError }) {
       const [telegram, notify, email] = await Promise.all([
         getTelegramSettings(),
         getNotifySettings(),
-        getEmailSettings(),
+        getEmailSettings()
       ])
       
       // Telegram 设置
       setTelegramEnabled(telegram.enabled || false)
+      setTelegramBotToken(telegram.bot_token || '')
       if (telegram.chats && telegram.chats.length > 0) {
         setTelegramChats(telegram.chats)
       }
@@ -79,11 +82,8 @@ export default function SettingsPage({ showSuccess, showError }) {
   // 验证标签长度
   const validateLabel = (label) => {
     if (!label) return true
-    // 计算中文字符数
     const chineseCount = (label.match(/[\u4e00-\u9fa5]/g) || []).length
-    // 计算英文数字字符数
     const otherCount = label.length - chineseCount
-    // 中文最多4个，英文数字最多8个
     return chineseCount <= 4 && otherCount <= 8
   }
 
@@ -103,7 +103,7 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const canToggleTelegramChat = (chat) => {
-    return chat.label.trim() !== '' && chat.chat_id.trim() !== ''
+    return chat.label.trim() !== '' && chat.chat_id.trim() !== '' && telegramBotToken.trim() !== ''
   }
 
   const handleSaveTelegram = async () => {
@@ -111,6 +111,7 @@ export default function SettingsPage({ showSuccess, showError }) {
     try {
       await saveTelegramSettings({ 
         enabled: telegramEnabled, 
+        bot_token: telegramBotToken,
         chats: telegramChats 
       })
       showSuccess('Telegram设置已保存')
@@ -118,6 +119,28 @@ export default function SettingsPage({ showSuccess, showError }) {
       showError('保存失败')
     }
     setTelegramLoading(false)
+  }
+
+  const handleTestTelegramChat = async (chat) => {
+    if (!telegramBotToken || !chat.chat_id) {
+      showError('请先填写Bot Token和Chat ID')
+      return
+    }
+    setTestingChatId(chat.id)
+    try {
+      const result = await testTelegram({ 
+        bot_token: telegramBotToken, 
+        chat_id: chat.chat_id 
+      })
+      if (result.success) {
+        showSuccess(`测试通知已发送至 ${chat.label || chat.chat_id}`)
+      } else {
+        showError('测试失败: ' + (result.error || '未知错误'))
+      }
+    } catch (error) {
+      showError('测试失败: 网络错误')
+    }
+    setTestingChatId(null)
   }
 
   // 邮件操作
@@ -136,7 +159,8 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const canToggleEmailReceiver = (receiver) => {
-    return receiver.label.trim() !== '' && receiver.email.trim() !== ''
+    return receiver.label.trim() !== '' && receiver.email.trim() !== '' && 
+           emailSmtp.smtp_host.trim() !== '' && emailSmtp.smtp_user.trim() !== ''
   }
 
   const handleSaveEmail = async () => {
@@ -152,6 +176,28 @@ export default function SettingsPage({ showSuccess, showError }) {
       showError('保存失败')
     }
     setEmailLoading(false)
+  }
+
+  const handleTestEmailReceiver = async (receiver) => {
+    if (!emailSmtp.smtp_host || !emailSmtp.smtp_user || !receiver.email) {
+      showError('请先填写SMTP设置和收件人邮箱')
+      return
+    }
+    setTestingEmailId(receiver.id)
+    try {
+      const result = await testEmail({ 
+        smtp: emailSmtp,
+        email: receiver.email 
+      })
+      if (result.success) {
+        showSuccess(`测试邮件已发送至 ${receiver.label || receiver.email}`)
+      } else {
+        showError('测试失败: ' + (result.error || '未知错误'))
+      }
+    } catch (error) {
+      showError('测试失败: 网络错误')
+    }
+    setTestingEmailId(null)
   }
 
   // 通知标题操作
@@ -207,10 +253,11 @@ export default function SettingsPage({ showSuccess, showError }) {
         系统设置
       </h2>
 
-      {/* Telegram Bot 设置 */}
-      <div className="card" style={{ marginBottom: '24px' }}>
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* Telegram Bot 设置 - 左右布局 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+        {/* 左卡片：Telegram Bot 设置 */}
+        <div className="card">
+          <div className="card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
                 Telegram Bot 设置
@@ -224,90 +271,23 @@ export default function SettingsPage({ showSuccess, showError }) {
                 {renderSwitchStatus(telegramEnabled)}
               </div>
             </div>
-            <button 
-              className="btn btn-secondary btn-sm" 
-              onClick={addTelegramChat}
-              disabled={!telegramEnabled}
-              style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              + 添加 Chat ID
-            </button>
           </div>
-        </div>
-        <div className="card-body">
-          {telegramChats.map((chat, index) => (
-            <div key={chat.id} style={{ 
-              marginBottom: index < telegramChats.length - 1 ? '16px' : 0,
-              padding: '16px',
-              background: 'var(--animal-bg-color)',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              border: '1px solid var(--animal-border-color-light)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
-                    Chat ID #{index + 1}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Switch 
-                      checked={chat.enabled} 
-                      onChange={(val) => updateTelegramChat(chat.id, 'enabled', val)}
-                      size="small"
-                      disabled={!telegramEnabled || !canToggleTelegramChat(chat)}
-                    />
-                    {renderSwitchStatus(chat.enabled)}
-                  </div>
-                </div>
-                {telegramChats.length > 1 && (
-                  <button 
-                    className="btn btn-danger btn-sm"
-                    onClick={() => removeTelegramChat(chat.id)}
-                    style={{ padding: '4px 8px', fontSize: '12px' }}
-                  >
-                    删除
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '12px' }}>
-                    自定义标签
-                    <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '4px' }}>
-                      (最多4个中文或8个英文)
-                    </span>
-                  </label>
-                  <input
-                    className="input"
-                    value={chat.label}
-                    onChange={(e) => {
-                      if (validateLabel(e.target.value)) {
-                        updateTelegramChat(chat.id, 'label', e.target.value)
-                      }
-                    }}
-                    placeholder="例如：工作群"
-                    disabled={!telegramEnabled}
-                    style={{ fontSize: '13px' }}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '12px' }}>Chat ID</label>
-                  <input
-                    className="input"
-                    value={chat.chat_id}
-                    onChange={(e) => updateTelegramChat(chat.id, 'chat_id', e.target.value)}
-                    placeholder="请输入Chat ID"
-                    disabled={!telegramEnabled}
-                    style={{ fontSize: '13px' }}
-                  />
-                </div>
-              </div>
+          <div className="card-body">
+            <div className="form-group">
+              <label className="form-label">Bot Token</label>
+              <input
+                className="input"
+                value={telegramBotToken}
+                onChange={(e) => setTelegramBotToken(e.target.value)}
+                placeholder="请输入Bot Token"
+                disabled={!telegramEnabled}
+              />
             </div>
-          ))}
-          <div style={{ marginTop: '16px' }}>
             <button 
               className="btn btn-primary" 
               onClick={handleSaveTelegram} 
               disabled={telegramLoading}
+              style={{ width: '100%' }}
             >
               {currentTheme === 'animal-forest' ? (
                 <Icon item={352} size={16} />
@@ -318,12 +298,99 @@ export default function SettingsPage({ showSuccess, showError }) {
             </button>
           </div>
         </div>
+
+        {/* 右卡片：Chat ID 设置 */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+                Chat ID 设置
+              </h3>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={addTelegramChat}
+                disabled={!telegramEnabled}
+                style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              >
+                + 添加
+              </button>
+            </div>
+          </div>
+          <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {telegramChats.map((chat, index) => (
+              <div key={chat.id} style={{ 
+                marginBottom: index < telegramChats.length - 1 ? '12px' : 0,
+                padding: '12px',
+                background: 'var(--animal-bg-color)',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                border: '1px solid var(--animal-border-color-light)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
+                      #{index + 1}
+                    </span>
+                    <Switch 
+                      checked={chat.enabled} 
+                      onChange={(val) => updateTelegramChat(chat.id, 'enabled', val)}
+                      size="small"
+                      disabled={!telegramEnabled || !canToggleTelegramChat(chat)}
+                    />
+                    {renderSwitchStatus(chat.enabled)}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleTestTelegramChat(chat)}
+                      disabled={!telegramEnabled || !canToggleTelegramChat(chat) || testingChatId === chat.id}
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      {testingChatId === chat.id ? '...' : '测试'}
+                    </button>
+                    {telegramChats.length > 1 && (
+                      <button 
+                        className="btn btn-danger btn-sm"
+                        onClick={() => removeTelegramChat(chat.id)}
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    className="input"
+                    value={chat.label}
+                    onChange={(e) => {
+                      if (validateLabel(e.target.value)) {
+                        updateTelegramChat(chat.id, 'label', e.target.value)
+                      }
+                    }}
+                    placeholder="标签（最多4中文或8英文）"
+                    disabled={!telegramEnabled}
+                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                  />
+                  <input
+                    className="input"
+                    value={chat.chat_id}
+                    onChange={(e) => updateTelegramChat(chat.id, 'chat_id', e.target.value)}
+                    placeholder="Chat ID"
+                    disabled={!telegramEnabled}
+                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* 邮件通知设置 */}
-      <div className="card" style={{ marginBottom: '24px' }}>
-        <div className="card-header">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      {/* 邮件通知设置 - 左右布局 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
+        {/* 左卡片：邮件通知设置 */}
+        <div className="card">
+          <div className="card-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
                 邮件通知设置
@@ -337,30 +404,10 @@ export default function SettingsPage({ showSuccess, showError }) {
                 {renderSwitchStatus(emailEnabled)}
               </div>
             </div>
-            <button 
-              className="btn btn-secondary btn-sm" 
-              onClick={addEmailReceiver}
-              disabled={!emailEnabled}
-              style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              + 添加收件人
-            </button>
           </div>
-        </div>
-        <div className="card-body">
-          {/* SMTP 设置 */}
-          <div style={{ 
-            marginBottom: '20px', 
-            padding: '16px', 
-            background: 'var(--animal-bg-color)', 
-            borderRadius: 'var(--animal-border-radius-sm)',
-            border: '1px solid var(--animal-border-color-light)',
-          }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--animal-text-color)', marginBottom: '12px' }}>
-              SMTP 服务器设置
-            </h4>
+          <div className="card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
+              <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 服务器</label>
                 <input
                   className="input"
@@ -371,7 +418,7 @@ export default function SettingsPage({ showSuccess, showError }) {
                   style={{ fontSize: '13px' }}
                 />
               </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
+              <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 端口</label>
                 <input
                   className="input"
@@ -383,107 +430,34 @@ export default function SettingsPage({ showSuccess, showError }) {
                 />
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '12px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '12px' }}>SMTP 用户名</label>
-                <input
-                  className="input"
-                  value={emailSmtp.smtp_user}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})}
-                  placeholder="your@email.com"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label" style={{ fontSize: '12px' }}>SMTP 密码/授权码</label>
-                <input
-                  className="input"
-                  type="password"
-                  value={emailSmtp.smtp_password}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})}
-                  placeholder="授权码"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
-              </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '12px' }}>SMTP 用户名</label>
+              <input
+                className="input"
+                value={emailSmtp.smtp_user}
+                onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})}
+                placeholder="your@email.com"
+                disabled={!emailEnabled}
+                style={{ fontSize: '13px' }}
+              />
             </div>
-          </div>
-
-          {/* 收件人列表 */}
-          {emailReceivers.map((receiver, index) => (
-            <div key={receiver.id} style={{ 
-              marginBottom: index < emailReceivers.length - 1 ? '16px' : 0,
-              padding: '16px',
-              background: 'var(--animal-bg-color)',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              border: '1px solid var(--animal-border-color-light)',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
-                    收件人 #{index + 1}
-                  </span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <Switch 
-                      checked={receiver.enabled} 
-                      onChange={(val) => updateEmailReceiver(receiver.id, 'enabled', val)}
-                      size="small"
-                      disabled={!emailEnabled || !canToggleEmailReceiver(receiver)}
-                    />
-                    {renderSwitchStatus(receiver.enabled)}
-                  </div>
-                </div>
-                {emailReceivers.length > 1 && (
-                  <button 
-                    className="btn btn-danger btn-sm"
-                    onClick={() => removeEmailReceiver(receiver.id)}
-                    style={{ padding: '4px 8px', fontSize: '12px' }}
-                  >
-                    删除
-                  </button>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '12px' }}>
-                    自定义标签
-                    <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '4px' }}>
-                      (最多4个中文或8个英文)
-                    </span>
-                  </label>
-                  <input
-                    className="input"
-                    value={receiver.label}
-                    onChange={(e) => {
-                      if (validateLabel(e.target.value)) {
-                        updateEmailReceiver(receiver.id, 'label', e.target.value)
-                      }
-                    }}
-                    placeholder="例如：个人邮箱"
-                    disabled={!emailEnabled}
-                    style={{ fontSize: '13px' }}
-                  />
-                </div>
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label" style={{ fontSize: '12px' }}>收件人邮箱</label>
-                  <input
-                    className="input"
-                    value={receiver.email}
-                    onChange={(e) => updateEmailReceiver(receiver.id, 'email', e.target.value)}
-                    placeholder="receiver@email.com"
-                    disabled={!emailEnabled}
-                    style={{ fontSize: '13px' }}
-                  />
-                </div>
-              </div>
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '12px' }}>SMTP 密码/授权码</label>
+              <input
+                className="input"
+                type="password"
+                value={emailSmtp.smtp_password}
+                onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})}
+                placeholder="授权码"
+                disabled={!emailEnabled}
+                style={{ fontSize: '13px' }}
+              />
             </div>
-          ))}
-          <div style={{ marginTop: '16px' }}>
             <button 
               className="btn btn-primary" 
               onClick={handleSaveEmail} 
               disabled={emailLoading}
+              style={{ width: '100%' }}
             >
               {currentTheme === 'animal-forest' ? (
                 <Icon item={352} size={16} />
@@ -492,6 +466,92 @@ export default function SettingsPage({ showSuccess, showError }) {
               )}
               {emailLoading ? '保存中...' : '保存设置'}
             </button>
+          </div>
+        </div>
+
+        {/* 右卡片：收件人设置 */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+                收件人设置
+              </h3>
+              <button 
+                className="btn btn-secondary btn-sm" 
+                onClick={addEmailReceiver}
+                disabled={!emailEnabled}
+                style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+              >
+                + 添加
+              </button>
+            </div>
+          </div>
+          <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {emailReceivers.map((receiver, index) => (
+              <div key={receiver.id} style={{ 
+                marginBottom: index < emailReceivers.length - 1 ? '12px' : 0,
+                padding: '12px',
+                background: 'var(--animal-bg-color)',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                border: '1px solid var(--animal-border-color-light)',
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
+                      #{index + 1}
+                    </span>
+                    <Switch 
+                      checked={receiver.enabled} 
+                      onChange={(val) => updateEmailReceiver(receiver.id, 'enabled', val)}
+                      size="small"
+                      disabled={!emailEnabled || !canToggleEmailReceiver(receiver)}
+                    />
+                    {renderSwitchStatus(receiver.enabled)}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button 
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleTestEmailReceiver(receiver)}
+                      disabled={!emailEnabled || !canToggleEmailReceiver(receiver) || testingEmailId === receiver.id}
+                      style={{ padding: '2px 8px', fontSize: '11px' }}
+                    >
+                      {testingEmailId === receiver.id ? '...' : '测试'}
+                    </button>
+                    {emailReceivers.length > 1 && (
+                      <button 
+                        className="btn btn-danger btn-sm"
+                        onClick={() => removeEmailReceiver(receiver.id)}
+                        style={{ padding: '2px 8px', fontSize: '11px' }}
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <input
+                    className="input"
+                    value={receiver.label}
+                    onChange={(e) => {
+                      if (validateLabel(e.target.value)) {
+                        updateEmailReceiver(receiver.id, 'label', e.target.value)
+                      }
+                    }}
+                    placeholder="标签（最多4中文或8英文）"
+                    disabled={!emailEnabled}
+                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                  />
+                  <input
+                    className="input"
+                    value={receiver.email}
+                    onChange={(e) => updateEmailReceiver(receiver.id, 'email', e.target.value)}
+                    placeholder="收件人邮箱"
+                    disabled={!emailEnabled}
+                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

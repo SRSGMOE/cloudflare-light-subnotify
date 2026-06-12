@@ -78,9 +78,10 @@ export async function saveTelegramSettings(data) {
   return response.json()
 }
 
-export async function testTelegram() {
+export async function testTelegram(data) {
   const response = await fetchApi('/test-telegram', {
     method: 'POST',
+    body: JSON.stringify(data),
   })
   return response.json()
 }

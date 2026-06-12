@@ -120,16 +120,11 @@ export async function onRequest(context) {
     
     // 测试Telegram
     if (path === '/test-telegram' && method === 'POST') {
-      const { results: tokenResults } = await env.DB.prepare(
-        "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
-      ).all();
-      const { results: chatResults } = await env.DB.prepare(
-        "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
-      ).all();
-      const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
-      const chatId = chatResults.length > 0 ? chatResults[0].value : '';
+      const body = await request.json();
+      const botToken = body.bot_token || '';
+      const chatId = body.chat_id || '';
       if (!botToken || !chatId) {
-        return json({ success: false, error: '请先配置Telegram Bot' });
+        return json({ success: false, error: '请提供Bot Token和Chat ID' });
       }
       // 注册命令
       await fetch('https://api.telegram.org/bot' + botToken + '/setMyCommands', {
