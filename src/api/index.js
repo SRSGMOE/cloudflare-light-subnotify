@@ -93,6 +93,26 @@ export async function testNotify(data) {
   return response.json()
 }
 
+export async function getEmailSettings() {
+  const response = await fetchApi('/email-settings')
+  return response.json()
+}
+
+export async function saveEmailSettings(data) {
+  const response = await fetchApi('/email-settings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function testEmail() {
+  const response = await fetchApi('/test-email', {
+    method: 'POST',
+  })
+  return response.json()
+}
+
 export async function login(username, password) {
   const response = await fetch('/api/login', {
     method: 'POST',

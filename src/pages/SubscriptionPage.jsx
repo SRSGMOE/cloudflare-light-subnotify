@@ -184,20 +184,17 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
 
   return (
     <div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
+      <h2 style={{ 
+        fontSize: '24px', 
+        fontWeight: 700, 
+        color: 'var(--animal-text-color)',
+        margin: 0,
         marginBottom: '16px',
       }}>
-        <h2 style={{ 
-          fontSize: '24px', 
-          fontWeight: 700, 
-          color: 'var(--animal-text-color)',
-          margin: 0,
-        }}>
-          订阅管理
-        </h2>
+        订阅管理
+      </h2>
+      
+      <div style={{ marginBottom: '20px' }}>
         <button className="btn btn-primary" onClick={handleAdd}>
           {currentTheme !== 'animal-forest' && <span>➕</span>}
           添加订阅
@@ -207,7 +204,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       {/* 订阅卡片列表 - 横向网格排列 */}
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', 
+        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', 
         gap: '16px',
         marginBottom: '24px',
       }}>
@@ -316,8 +313,14 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                     <span style={{ 
                       fontSize: '14px', 
                       color: 'var(--animal-text-color-secondary)',
+                      display: 'inline-block',
+                      maxWidth: 'calc(100% - 40px)',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      verticalAlign: 'middle',
                     }}>
-                      {record.content.length > 50 ? record.content.substring(0, 50) + '...' : record.content}
+                      {record.content}
                     </span>
                   </div>
                 )}

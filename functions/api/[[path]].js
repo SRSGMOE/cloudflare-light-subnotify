@@ -271,6 +271,65 @@ export async function onRequest(context) {
       return json({ success: data.ok, error: data.description });
     }
     
+    // 邮件设置
+    if (path === '/email-settings' && method === 'GET') {
+      const { results } = await env.DB.prepare("SELECT * FROM notify_settings WHERE key LIKE 'email_%'").all();
+      const settings = {};
+      results.forEach(r => {
+        settings[r.key.replace('email_', '')] = r.value;
+      });
+      return json({
+        enabled: settings.enabled === 'true',
+        smtp_host: settings.smtp_host || '',
+        smtp_port: settings.smtp_port || '465',
+        smtp_user: settings.smtp_user || '',
+        smtp_password: settings.smtp_password || '',
+        email_from: settings.email_from || '',
+        email_to: settings.email_to || '',
+      });
+    }
+    
+    if (path === '/email-settings' && method === 'POST') {
+      const body = await request.json();
+      const settings = {
+        'email_enabled': body.enabled ? 'true' : 'false',
+        'email_smtp_host': body.smtp_host || '',
+        'email_smtp_port': body.smtp_port || '465',
+        'email_smtp_user': body.smtp_user || '',
+        'email_smtp_password': body.smtp_password || '',
+        'email_email_from': body.email_from || '',
+        'email_email_to': body.email_to || '',
+      };
+      for (const [key, value] of Object.entries(settings)) {
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES (?, ?)"
+        ).bind(key, value).run();
+      }
+      return json({ success: true });
+    }
+    
+    // 测试邮件
+    if (path === '/test-email' && method === 'POST') {
+      // 获取邮件设置
+      const { results } = await env.DB.prepare("SELECT * FROM notify_settings WHERE key LIKE 'email_%'").all();
+      const settings = {};
+      results.forEach(r => {
+        settings[r.key.replace('email_', '')] = r.value;
+      });
+      
+      if (!settings.smtp_host || !settings.smtp_user || !settings.email_to) {
+        return json({ success: false, error: '请先配置邮件设置' });
+      }
+      
+      // 注意：Cloudflare Workers 不支持直接发送邮件
+      // 这里只是返回成功，实际发送需要使用外部邮件服务
+      // 可以集成 SendGrid、Mailgun 等服务
+      return json({ 
+        success: true, 
+        message: '测试邮件功能需要配置外部邮件服务（如 SendGrid、Mailgun）' 
+      });
+    }
+    
     // 手动触发通知检查
     // 安全机制：通过随机路径前缀访问
     // 完整路径：/{API_PREFIX}/api/check-notifications
