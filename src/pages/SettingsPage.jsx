@@ -257,7 +257,7 @@ export default function SettingsPage({ showSuccess, showError }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         {/* 左卡片：Telegram Bot 设置 */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
                 Telegram Bot 设置
@@ -271,6 +271,18 @@ export default function SettingsPage({ showSuccess, showError }) {
                 {renderSwitchStatus(telegramEnabled)}
               </div>
             </div>
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={handleSaveTelegram} 
+              disabled={telegramLoading}
+            >
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={352} size={14} />
+              ) : (
+                <span>💾</span>
+              )}
+              {telegramLoading ? '保存中...' : '保存设置'}
+            </button>
           </div>
           <div className="card-body">
             <div className="form-group">
@@ -283,38 +295,23 @@ export default function SettingsPage({ showSuccess, showError }) {
                 disabled={!telegramEnabled}
               />
             </div>
-            <button 
-              className="btn btn-primary" 
-              onClick={handleSaveTelegram} 
-              disabled={telegramLoading}
-              style={{ width: '100%' }}
-            >
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={352} size={16} />
-              ) : (
-                <span>💾</span>
-              )}
-              {telegramLoading ? '保存中...' : '保存设置'}
-            </button>
           </div>
         </div>
 
         {/* 右卡片：Chat ID 设置 */}
         <div className="card">
-          <div className="card-header">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-                Chat ID 设置
-              </h3>
-              <button 
-                className="btn btn-secondary btn-sm" 
-                onClick={addTelegramChat}
-                disabled={!telegramEnabled}
-                style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-              >
-                + 添加
-              </button>
-            </div>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+              Chat ID 设置
+            </h3>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={addTelegramChat}
+              disabled={!telegramEnabled}
+              style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
+              + 添加
+            </button>
           </div>
           <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             {telegramChats.map((chat, index) => (
@@ -388,7 +385,7 @@ export default function SettingsPage({ showSuccess, showError }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         {/* 左卡片：邮件通知设置 */}
         <div className="card">
-          <div className="card-header">
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
                 邮件通知设置
@@ -402,6 +399,18 @@ export default function SettingsPage({ showSuccess, showError }) {
                 {renderSwitchStatus(emailEnabled)}
               </div>
             </div>
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={handleSaveEmail} 
+              disabled={emailLoading}
+            >
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={352} size={14} />
+              ) : (
+                <span>💾</span>
+              )}
+              {emailLoading ? '保存中...' : '保存设置'}
+            </button>
           </div>
           <div className="card-body">
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -428,61 +437,48 @@ export default function SettingsPage({ showSuccess, showError }) {
                 />
               </div>
             </div>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '12px' }}>SMTP 用户名</label>
-              <input
-                className="input"
-                value={emailSmtp.smtp_user}
-                onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})}
-                placeholder="your@email.com"
-                disabled={!emailEnabled}
-                style={{ fontSize: '13px' }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '12px' }}>SMTP 用户名</label>
+                <input
+                  className="input"
+                  value={emailSmtp.smtp_user}
+                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})}
+                  placeholder="your@email.com"
+                  disabled={!emailEnabled}
+                  style={{ fontSize: '13px' }}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label" style={{ fontSize: '12px' }}>SMTP 密码/授权码</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={emailSmtp.smtp_password}
+                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})}
+                  placeholder="授权码"
+                  disabled={!emailEnabled}
+                  style={{ fontSize: '13px' }}
+                />
+              </div>
             </div>
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '12px' }}>SMTP 密码/授权码</label>
-              <input
-                className="input"
-                type="password"
-                value={emailSmtp.smtp_password}
-                onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})}
-                placeholder="授权码"
-                disabled={!emailEnabled}
-                style={{ fontSize: '13px' }}
-              />
-            </div>
-            <button 
-              className="btn btn-primary" 
-              onClick={handleSaveEmail} 
-              disabled={emailLoading}
-              style={{ width: '100%' }}
-            >
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={352} size={16} />
-              ) : (
-                <span>💾</span>
-              )}
-              {emailLoading ? '保存中...' : '保存设置'}
-            </button>
           </div>
         </div>
 
         {/* 右卡片：收件人设置 */}
         <div className="card">
-          <div className="card-header">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-                收件人设置
-              </h3>
-              <button 
-                className="btn btn-secondary btn-sm" 
-                onClick={addEmailReceiver}
-                disabled={!emailEnabled}
-                style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-              >
-                + 添加
-              </button>
-            </div>
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+              收件人设置
+            </h3>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={addEmailReceiver}
+              disabled={!emailEnabled}
+              style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+            >
+              + 添加
+            </button>
           </div>
           <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             {emailReceivers.map((receiver, index) => (
