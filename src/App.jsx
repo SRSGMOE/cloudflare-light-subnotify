@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Icon } from 'animal-island-ui'
 import { checkAuth, verifyToken, getSubscriptions } from './api'
 import { useTheme } from './context/ThemeContext.jsx'
 import { ToastContainer } from './components/Toast.jsx'
@@ -98,9 +99,9 @@ export default function App() {
   }
 
   const menuItems = [
-    { key: 'dashboard', icon: '📊', label: '数据表盘' },
-    { key: 'subscriptions', icon: '📋', label: '订阅管理' },
-    { key: 'settings', icon: '⚙️', label: '系统设置' },
+    { key: 'dashboard', icon: 'icon-miles', label: '数据表盘' },
+    { key: 'subscriptions', icon: 'icon-design', label: '订阅管理' },
+    { key: 'settings', icon: 'icon-diy', label: '系统设置' },
   ]
 
   return (
@@ -120,14 +121,18 @@ export default function App() {
           padding: '20px',
           borderBottom: '2px solid var(--animal-border-color-light)',
           background: 'var(--animal-bg-color)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
         }}>
+          <Icon name="icon-variant" size={28} bounce />
           <h1 style={{ 
             fontSize: '18px', 
             fontWeight: 700,
             color: 'var(--animal-text-color)',
             margin: 0,
           }}>
-            🌿 订阅通知
+            订阅通知
           </h1>
         </div>
         
@@ -154,9 +159,11 @@ export default function App() {
                   : 'var(--animal-text-color-secondary)',
               }}
             >
-              <span style={{ fontSize: '18px', width: '24px', textAlign: 'center' }}>
-                {item.icon}
-              </span>
+              <Icon 
+                name={item.icon} 
+                size={24} 
+                bounce={currentPage === item.key}
+              />
               <span style={{ fontWeight: 500 }}>{item.label}</span>
             </div>
           ))}
@@ -223,18 +230,15 @@ export default function App() {
             marginBottom: '12px',
           }}>
             <div style={{
-              width: '36px',
-              height: '36px',
+              width: '40px',
+              height: '40px',
               background: 'var(--animal-primary-color-bg)',
               borderRadius: '50%',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontSize: '14px',
-              fontWeight: 600,
-              color: 'var(--animal-primary-color)',
             }}>
-              A
+              <Icon item={440} size={28} />
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--animal-text-color)' }}>
@@ -246,7 +250,8 @@ export default function App() {
             </div>
           </div>
           <button className="btn btn-secondary btn-block" onClick={handleLogout}>
-            🚪 退出登录
+            <Icon item={474} size={18} />
+            退出登录
           </button>
         </div>
       </div>

@@ -433,3 +433,30 @@ body {
   border-color: var(--animal-primary-color);
   box-shadow: 0 0 0 3px var(--animal-primary-color-bg);
 }
+
+/* Bounce 弹跳动画 */
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.bounce {
+  animation: bounce 0.6s ease-in-out infinite;
+}
+
+/* 图标容器 */
+.icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 导航项图标动画 */
+.nav-item:hover .icon-wrapper,
+.nav-item.active .icon-wrapper {
+  animation: bounce 0.6s ease-in-out infinite;
+}

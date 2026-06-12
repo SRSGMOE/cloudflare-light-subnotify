@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Icon } from 'animal-island-ui'
 import { login } from '../api'
 
 export default function LoginPage({ onLogin, showError }) {
@@ -42,7 +43,9 @@ export default function LoginPage({ onLogin, showError }) {
         textAlign: 'center',
       }}>
         <div className="card-body" style={{ padding: '40px' }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌿</div>
+          <div style={{ marginBottom: '16px' }}>
+            <Icon name="icon-variant" size={64} bounce />
+          </div>
           <h1 style={{
             fontSize: '24px',
             fontWeight: 700,

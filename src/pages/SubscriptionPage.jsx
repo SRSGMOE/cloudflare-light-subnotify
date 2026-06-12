@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { Icon } from 'animal-island-ui'
 import { createSubscription, updateSubscription, deleteSubscription } from '../api'
 
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
@@ -139,65 +140,76 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         }}>
           订阅管理
         </h2>
-        <button className="btn btn-primary" onClick={handleAdd}>
-          ➕ 新建订阅
-        </button>
       </div>
       
       <div className="card">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>序号</th>
-              <th>名称</th>
-              <th>内容</th>
-              <th>周期</th>
-              <th>时区</th>
-              <th>下次通知</th>
-              <th>状态</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {subscriptions.map((record, index) => (
-              <tr key={record.id}>
-                <td>{index + 1}</td>
-                <td>{record.name}</td>
-                <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {record.content}
-                </td>
-                <td>{getCycleLabel(record)}</td>
-                <td>{tzLabels[record.timezone] || record.timezone}</td>
-                <td>{record.next_notify_date} {record.cycle_hour || '09'}:{record.cycle_minute || '00'}</td>
-                <td>
-                  <span className={`tag ${record.is_active ? 'tag-green' : 'tag-red'}`}>
-                    {record.is_active ? '活跃' : '暂停'}
-                  </span>
-                </td>
-                <td>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(record)}>
-                      ✏️ 编辑
-                    </button>
-                    <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}>
-                      {record.is_active ? '⏸️ 暂停' : '▶️ 恢复'}
-                    </button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(record.id)}>
-                      🗑️ 删除
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        
-        {subscriptions.length === 0 && (
+        {subscriptions.length > 0 ? (
+          <>
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>序号</th>
+                  <th>名称</th>
+                  <th>内容</th>
+                  <th>周期</th>
+                  <th>时区</th>
+                  <th>下次通知</th>
+                  <th>状态</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subscriptions.map((record, index) => (
+                  <tr key={record.id}>
+                    <td>{index + 1}</td>
+                    <td>{record.name}</td>
+                    <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {record.content}
+                    </td>
+                    <td>{getCycleLabel(record)}</td>
+                    <td>{tzLabels[record.timezone] || record.timezone}</td>
+                    <td>{record.next_notify_date} {record.cycle_hour || '09'}:{record.cycle_minute || '00'}</td>
+                    <td>
+                      <span className={`tag ${record.is_active ? 'tag-green' : 'tag-red'}`}>
+                        {record.is_active ? '活跃' : '暂停'}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(record)}>
+                          <Icon name="icon-diy" size={14} />
+                          编辑
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}>
+                          <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
+                          {record.is_active ? '暂停' : '恢复'}
+                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(record.id)}>
+                          <Icon item={474} size={14} />
+                          删除
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div style={{ padding: '16px 20px', borderTop: '2px solid var(--animal-border-color-light)', textAlign: 'center' }}>
+              <button className="btn btn-primary" onClick={handleAdd}>
+                <Icon item={478} size={18} />
+                添加订阅
+              </button>
+            </div>
+          </>
+        ) : (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
-            <div style={{ fontSize: '48px', marginBottom: '16px' }}>📋</div>
-            <p>暂无订阅数据</p>
-            <button className="btn btn-primary" onClick={handleAdd} style={{ marginTop: '16px' }}>
-              添加第一个订阅
+            <div style={{ marginBottom: '16px' }}>
+              <Icon name="icon-design" size={64} />
+            </div>
+            <p style={{ marginBottom: '16px' }}>暂无订阅数据</p>
+            <button className="btn btn-primary" onClick={handleAdd}>
+              <Icon item={478} size={18} />
+              添加订阅
             </button>
           </div>
         )}

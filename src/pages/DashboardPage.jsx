@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Icon } from 'animal-island-ui'
 
 export default function DashboardPage({ subscriptions }) {
   const [utcTime, setUtcTime] = useState('')
@@ -51,7 +52,7 @@ export default function DashboardPage({ subscriptions }) {
       }}>
         <div className="card-body">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '24px' }}>💡</span>
+            <Icon item={440} size={28} bounce />
             <span style={{ fontWeight: 600, color: 'var(--animal-text-color)' }}>
               温馨提示：建议您先把设备时间进行一次同步更新再进行操作，以确保时间显示准确。
             </span>
@@ -71,8 +72,9 @@ export default function DashboardPage({ subscriptions }) {
           color: '#fff',
         }}>
           <div className="card-body">
-            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-              世界协调时 UTC
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <Icon item={477} size={16} />
+              <span style={{ fontSize: '12px', opacity: 0.9 }}>世界协调时 UTC</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
               {utcTime}
@@ -85,8 +87,9 @@ export default function DashboardPage({ subscriptions }) {
           color: '#fff',
         }}>
           <div className="card-body">
-            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-              北京时间 CST
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <Icon item={477} size={16} />
+              <span style={{ fontSize: '12px', opacity: 0.9 }}>北京时间 CST</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
               {cstTime}
@@ -99,8 +102,9 @@ export default function DashboardPage({ subscriptions }) {
           color: '#fff',
         }}>
           <div className="card-body">
-            <div style={{ fontSize: '12px', opacity: 0.9, marginBottom: '4px' }}>
-              美国东部 ET
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <Icon item={477} size={16} />
+              <span style={{ fontSize: '12px', opacity: 0.9 }}>美国东部 ET</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
               {etTime}
@@ -127,9 +131,8 @@ export default function DashboardPage({ subscriptions }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '20px',
               }}>
-                📋
+                <Icon item={320} size={28} />
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
@@ -154,9 +157,8 @@ export default function DashboardPage({ subscriptions }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '20px',
               }}>
-                ✅
+                <Icon item={319} size={28} />
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
@@ -181,9 +183,8 @@ export default function DashboardPage({ subscriptions }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '20px',
               }}>
-                ⏸️
+                <Icon item={318} size={28} />
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>

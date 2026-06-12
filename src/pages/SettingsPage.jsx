@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Icon } from 'animal-island-ui'
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
@@ -120,7 +121,8 @@ export default function SettingsPage({ showSuccess, showError }) {
             onClick={handleTestTelegram} 
             disabled={testLoading}
           >
-            {testLoading ? '测试中...' : '🔗 连通性测试'}
+            <Icon name="icon-chat" size={16} />
+            {testLoading ? '测试中...' : '连通性测试'}
           </button>
         </div>
         <div className="card-body">
@@ -147,7 +149,8 @@ export default function SettingsPage({ showSuccess, showError }) {
             onClick={handleSaveTelegram} 
             disabled={telegramLoading}
           >
-            {telegramLoading ? '保存中...' : '💾 保存设置'}
+            <Icon name="icon-diy" size={16} />
+            {telegramLoading ? '保存中...' : '保存设置'}
           </button>
         </div>
       </div>
@@ -189,14 +192,16 @@ export default function SettingsPage({ showSuccess, showError }) {
               onClick={handleSaveNotify} 
               disabled={notifyLoading}
             >
-              {notifyLoading ? '保存中...' : '💾 保存设置'}
+              <Icon name="icon-diy" size={16} />
+              {notifyLoading ? '保存中...' : '保存设置'}
             </button>
             <button 
               className="btn btn-secondary" 
               onClick={handleTestNotify} 
               disabled={notifyTestLoading}
             >
-              {notifyTestLoading ? '发送中...' : '📤 测试通知'}
+              <Icon name="icon-chat" size={16} />
+              {notifyTestLoading ? '发送中...' : '测试通知'}
             </button>
           </div>
         </div>
