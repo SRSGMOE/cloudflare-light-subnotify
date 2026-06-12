@@ -404,7 +404,6 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
           <p style={{ fontSize: '14px', color: 'var(--animal-text-color-disabled)' }}>点击上方「添加订阅」按钮创建第一个订阅</p>
         </div>
       )}
-      </div>
 
       {/* 编辑/新建订阅模态框 */}
       {modalVisible && (
