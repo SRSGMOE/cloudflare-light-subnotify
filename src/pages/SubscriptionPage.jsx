@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { Icon } from 'animal-island-ui'
+import { useTheme } from '../context/ThemeContext.jsx'
 import { createSubscription, updateSubscription, deleteSubscription } from '../api'
 
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
+  const { currentTheme } = useTheme()
   const [modalVisible, setModalVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -177,15 +179,27 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                     <td>
                       <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                         <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(record)}>
-                          <Icon name="icon-diy" size={14} />
+                          {currentTheme === 'animal-forest' ? (
+                            <Icon name="icon-diy" size={14} />
+                          ) : (
+                            <span>✏️</span>
+                          )}
                           编辑
                         </button>
                         <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}>
-                          <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
+                          {currentTheme === 'animal-forest' ? (
+                            <Icon name={record.is_active ? 'icon-map' : 'icon-miles'} size={14} />
+                          ) : (
+                            <span>{record.is_active ? '⏸️' : '▶️'}</span>
+                          )}
                           {record.is_active ? '暂停' : '恢复'}
                         </button>
                         <button className="btn btn-danger btn-sm" onClick={() => handleDelete(record.id)}>
-                          <Icon item={474} size={14} />
+                          {currentTheme === 'animal-forest' ? (
+                            <Icon item={474} size={14} />
+                          ) : (
+                            <span>🗑️</span>
+                          )}
                           删除
                         </button>
                       </div>
@@ -196,7 +210,11 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
             </table>
             <div style={{ padding: '16px 20px', borderTop: '2px solid var(--animal-border-color-light)', textAlign: 'center' }}>
               <button className="btn btn-primary" onClick={handleAdd}>
-                <Icon item={478} size={18} />
+                {currentTheme === 'animal-forest' ? (
+                  <Icon item={478} size={18} />
+                ) : (
+                  <span>➕</span>
+                )}
                 添加订阅
               </button>
             </div>
@@ -204,11 +222,19 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         ) : (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--animal-text-color-secondary)' }}>
             <div style={{ marginBottom: '16px' }}>
-              <Icon name="icon-design" size={64} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon name="icon-design" size={64} />
+              ) : (
+                <span style={{ fontSize: '64px' }}>📋</span>
+              )}
             </div>
             <p style={{ marginBottom: '16px' }}>暂无订阅数据</p>
             <button className="btn btn-primary" onClick={handleAdd}>
-              <Icon item={478} size={18} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={478} size={18} />
+              ) : (
+                <span>➕</span>
+              )}
               添加订阅
             </button>
           </div>

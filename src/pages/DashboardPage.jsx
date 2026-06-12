@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
+import { useTheme } from '../context/ThemeContext.jsx'
 
 export default function DashboardPage({ subscriptions }) {
+  const { currentTheme } = useTheme()
   const [utcTime, setUtcTime] = useState('')
   const [cstTime, setCstTime] = useState('')
   const [etTime, setEtTime] = useState('')
@@ -52,7 +54,11 @@ export default function DashboardPage({ subscriptions }) {
       }}>
         <div className="card-body">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Icon item={440} size={28} bounce />
+            {currentTheme === 'animal-forest' ? (
+              <Icon item={440} size={28} bounce />
+            ) : (
+              <span style={{ fontSize: '24px' }}>💡</span>
+            )}
             <span style={{ fontWeight: 600, color: 'var(--animal-text-color)' }}>
               温馨提示：建议您先把设备时间进行一次同步更新再进行操作，以确保时间显示准确。
             </span>
@@ -73,7 +79,11 @@ export default function DashboardPage({ subscriptions }) {
         }}>
           <div className="card-body">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <Icon item={477} size={16} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={477} size={16} />
+              ) : (
+                <span style={{ fontSize: '14px' }}>🕐</span>
+              )}
               <span style={{ fontSize: '12px', opacity: 0.9 }}>世界协调时 UTC</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
@@ -88,7 +98,11 @@ export default function DashboardPage({ subscriptions }) {
         }}>
           <div className="card-body">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <Icon item={477} size={16} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={477} size={16} />
+              ) : (
+                <span style={{ fontSize: '14px' }}>🕐</span>
+              )}
               <span style={{ fontSize: '12px', opacity: 0.9 }}>北京时间 CST</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
@@ -103,7 +117,11 @@ export default function DashboardPage({ subscriptions }) {
         }}>
           <div className="card-body">
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <Icon item={477} size={16} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={477} size={16} />
+              ) : (
+                <span style={{ fontSize: '14px' }}>🕐</span>
+              )}
               <span style={{ fontSize: '12px', opacity: 0.9 }}>美国东部 ET</span>
             </div>
             <div style={{ fontSize: '18px', fontWeight: 700 }}>
@@ -132,7 +150,11 @@ export default function DashboardPage({ subscriptions }) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Icon item={320} size={28} />
+                {currentTheme === 'animal-forest' ? (
+                  <Icon item={320} size={28} />
+                ) : (
+                  <span style={{ fontSize: '24px' }}>📋</span>
+                )}
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
@@ -158,7 +180,11 @@ export default function DashboardPage({ subscriptions }) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Icon item={319} size={28} />
+                {currentTheme === 'animal-forest' ? (
+                  <Icon item={319} size={28} />
+                ) : (
+                  <span style={{ fontSize: '24px' }}>✅</span>
+                )}
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
@@ -184,7 +210,11 @@ export default function DashboardPage({ subscriptions }) {
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Icon item={318} size={28} />
+                {currentTheme === 'animal-forest' ? (
+                  <Icon item={318} size={28} />
+                ) : (
+                  <span style={{ fontSize: '24px' }}>⏸️</span>
+                )}
               </div>
               <div>
                 <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>

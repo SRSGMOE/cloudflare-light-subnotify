@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { Icon } from 'animal-island-ui'
+import { useTheme } from '../context/ThemeContext.jsx'
 import { login } from '../api'
 
 export default function LoginPage({ onLogin, showError }) {
+  const { currentTheme } = useTheme()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -44,7 +46,11 @@ export default function LoginPage({ onLogin, showError }) {
       }}>
         <div className="card-body" style={{ padding: '40px' }}>
           <div style={{ marginBottom: '16px' }}>
-            <Icon name="icon-variant" size={64} bounce />
+            {currentTheme === 'animal-forest' ? (
+              <Icon name="icon-variant" size={64} bounce />
+            ) : (
+              <span style={{ fontSize: '64px' }}>🔔</span>
+            )}
           </div>
           <h1 style={{
             fontSize: '24px',

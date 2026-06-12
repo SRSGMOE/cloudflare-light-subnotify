@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
+import { useTheme } from '../context/ThemeContext.jsx'
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
@@ -10,6 +11,7 @@ import {
 } from '../api'
 
 export default function SettingsPage({ showSuccess, showError }) {
+  const { currentTheme } = useTheme()
   const [telegramSettings, setTelegramSettings] = useState({
     bot_token: '',
     chat_id: '',
@@ -91,13 +93,13 @@ export default function SettingsPage({ showSuccess, showError }) {
     setNotifyTestLoading(false)
   }
 
-  const notifyPreview = `${notifySettings.title || '订阅到期提醒'}
+  const notifyPreview = `📢 ${notifySettings.title || '订阅到期提醒'}
 
-【名称】示例订阅
-【内容】这是订阅内容示例
-【周期】每周五 14:30
-【时区】北京时间 UTC+8
-【下次通知】2024-01-12 14:30`
+📦 订阅名称：示例订阅
+🔖 订阅内容：这是订阅内容示例
+🌏 当前时区：北京时间 UTC+8
+📮 通知周期：每周五 14:30
+📆 下次通知：2024-01-12 14:30`
 
   return (
     <div>
@@ -116,14 +118,6 @@ export default function SettingsPage({ showSuccess, showError }) {
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
             Telegram Bot 设置
           </h3>
-          <button 
-            className="btn btn-secondary" 
-            onClick={handleTestTelegram} 
-            disabled={testLoading}
-          >
-            <Icon name="icon-chat" size={16} />
-            {testLoading ? '测试中...' : '连通性测试'}
-          </button>
         </div>
         <div className="card-body">
           <div className="form-group">
@@ -144,14 +138,32 @@ export default function SettingsPage({ showSuccess, showError }) {
               placeholder="请输入接收通知的Chat ID"
             />
           </div>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleSaveTelegram} 
-            disabled={telegramLoading}
-          >
-            <Icon name="icon-diy" size={16} />
-            {telegramLoading ? '保存中...' : '保存设置'}
-          </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleSaveTelegram} 
+              disabled={telegramLoading}
+            >
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={352} size={16} />
+              ) : (
+                <span>💾</span>
+              )}
+              {telegramLoading ? '保存中...' : '保存设置'}
+            </button>
+            <button 
+              className="btn btn-secondary" 
+              onClick={handleTestTelegram} 
+              disabled={testLoading}
+            >
+              {currentTheme === 'animal-forest' ? (
+                <Icon name="icon-chat" size={16} bounce />
+              ) : (
+                <span>🔗</span>
+              )}
+              {testLoading ? '测试中...' : '连通测试'}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -192,7 +204,11 @@ export default function SettingsPage({ showSuccess, showError }) {
               onClick={handleSaveNotify} 
               disabled={notifyLoading}
             >
-              <Icon name="icon-diy" size={16} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={352} size={16} />
+              ) : (
+                <span>💾</span>
+              )}
               {notifyLoading ? '保存中...' : '保存设置'}
             </button>
             <button 
@@ -200,7 +216,11 @@ export default function SettingsPage({ showSuccess, showError }) {
               onClick={handleTestNotify} 
               disabled={notifyTestLoading}
             >
-              <Icon name="icon-chat" size={16} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon name="icon-chat" size={16} bounce />
+              ) : (
+                <span>📤</span>
+              )}
               {notifyTestLoading ? '发送中...' : '测试通知'}
             </button>
           </div>

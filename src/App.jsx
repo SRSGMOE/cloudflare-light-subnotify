@@ -98,11 +98,18 @@ export default function App() {
     )
   }
 
-  const menuItems = [
-    { key: 'dashboard', icon: 'icon-miles', label: '数据表盘' },
-    { key: 'subscriptions', icon: 'icon-design', label: '订阅管理' },
-    { key: 'settings', icon: 'icon-diy', label: '系统设置' },
-  ]
+  // 根据主题选择不同的图标
+  const menuItems = currentTheme === 'animal-forest' 
+    ? [
+        { key: 'dashboard', icon: 'icon-miles', label: '数据表盘' },
+        { key: 'subscriptions', icon: 'icon-design', label: '订阅管理' },
+        { key: 'settings', icon: 'icon-diy', label: '系统设置' },
+      ]
+    : [
+        { key: 'dashboard', icon: null, emoji: '📊', label: '数据表盘' },
+        { key: 'subscriptions', icon: null, emoji: '📋', label: '订阅管理' },
+        { key: 'settings', icon: null, emoji: '⚙️', label: '系统设置' },
+      ]
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--animal-bg-color)' }}>
@@ -125,7 +132,11 @@ export default function App() {
           alignItems: 'center',
           gap: '12px',
         }}>
-          <Icon name="icon-variant" size={28} bounce />
+          {currentTheme === 'animal-forest' ? (
+            <Icon name="icon-variant" size={28} bounce />
+          ) : (
+            <span style={{ fontSize: '24px' }}>🔔</span>
+          )}
           <h1 style={{ 
             fontSize: '18px', 
             fontWeight: 700,
@@ -159,11 +170,15 @@ export default function App() {
                   : 'var(--animal-text-color-secondary)',
               }}
             >
-              <Icon 
-                name={item.icon} 
-                size={24} 
-                bounce={currentPage === item.key}
-              />
+              {item.icon ? (
+                <Icon 
+                  name={item.icon} 
+                  size={24} 
+                  bounce
+                />
+              ) : (
+                <span style={{ fontSize: '20px', width: '24px', textAlign: 'center' }}>{item.emoji}</span>
+              )}
               <span style={{ fontWeight: 500 }}>{item.label}</span>
             </div>
           ))}
@@ -238,7 +253,11 @@ export default function App() {
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <Icon item={440} size={28} />
+              {currentTheme === 'animal-forest' ? (
+                <Icon item={440} size={28} />
+              ) : (
+                <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--animal-primary-color)' }}>A</span>
+              )}
             </div>
             <div>
               <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--animal-text-color)' }}>
@@ -250,7 +269,11 @@ export default function App() {
             </div>
           </div>
           <button className="btn btn-secondary btn-block" onClick={handleLogout}>
-            <Icon item={474} size={18} />
+            {currentTheme === 'animal-forest' ? (
+              <Icon item={474} size={18} />
+            ) : (
+              <span>🚪</span>
+            )}
             退出登录
           </button>
         </div>

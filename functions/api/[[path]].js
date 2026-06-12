@@ -256,12 +256,12 @@ export async function onRequest(context) {
       if (!botToken || !chatId) {
         return json({ success: false, error: '请先配置Telegram Bot' });
       }
-      const message = title + String.fromCharCode(10) + String.fromCharCode(10) + 
-        '【名称】示例订阅' + String.fromCharCode(10) +
-        '【内容】这是订阅内容示例' + String.fromCharCode(10) +
-        '【周期】每周五 14:30' + String.fromCharCode(10) +
-        '【时区】北京时间 UTC+8' + String.fromCharCode(10) +
-        '【下次通知】2024-01-12 14:30';
+      const message = '📢 ' + title + String.fromCharCode(10) + String.fromCharCode(10) + 
+        '📦 订阅名称：示例订阅' + String.fromCharCode(10) +
+        '🔖 订阅内容：这是订阅内容示例' + String.fromCharCode(10) +
+        '🌏 当前时区：北京时间 UTC+8' + String.fromCharCode(10) +
+        '📮 通知周期：每周五 14:30' + String.fromCharCode(10) +
+        '📆 下次通知：2024-01-12 14:30';
       const res = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -269,6 +269,97 @@ export async function onRequest(context) {
       });
       const data = await res.json();
       return json({ success: data.ok, error: data.description });
+    }
+    
+    // 手动触发通知检查
+    if (path === '/check-notifications' && method === 'POST') {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      // 获取所有到期的订阅
+      const { results } = await env.DB.prepare(
+        'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
+      ).bind(today).all();
+      
+      let sent = 0;
+      for (const sub of results) {
+        try {
+          const { results: tokenResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+          ).all();
+          const { results: chatResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+          ).all();
+          
+          const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
+          const chatId = chatResults.length > 0 ? chatResults[0].value : '';
+          
+          if (!botToken || !chatId) continue;
+          
+          // 获取通知标题
+          const { results: titleResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='title'"
+          ).all();
+          const notifyTitle = titleResults.length > 0 ? titleResults[0].value : '订阅到期提醒';
+          
+          // 计算下一个通知日期
+          const nextDate = calculateNextDate(
+            sub.cycle_type, 
+            sub.cycle_value, 
+            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
+            sub.timezone, 
+            sub.next_notify_date
+          );
+          
+          // 构建通知消息
+          const tzLabels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
+          const cycleLabels = {
+            daily: '每日',
+            weekly: '每周',
+            monthly: '每月',
+            yearly: '每年',
+            specific: sub.cycle_value,
+          };
+          const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+          let cycleText = cycleLabels[sub.cycle_type] || sub.cycle_type;
+          if (sub.cycle_type === 'weekly') cycleText += days[parseInt(sub.cycle_value)] || '';
+          if (sub.cycle_type === 'monthly') cycleText += sub.cycle_value + '日';
+          if (sub.cycle_type === 'yearly') {
+            const parts = (sub.cycle_value || '1-1').split('-');
+            cycleText = '每年' + parts[0] + '月' + parts[1] + '日';
+          }
+          
+          const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
+            '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
+            '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
+            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
+            '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
+            '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+          
+          // 发送通知
+          await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: message })
+          });
+          
+          // 更新下次通知日期
+          if (sub.cycle_type !== 'specific') {
+            await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
+              .bind(nextDate, sub.id).run();
+          } else {
+            // 指定日期通知完成后自动暂停
+            await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
+              .bind(sub.id).run();
+          }
+          
+          sent++;
+        } catch (e) {
+          console.error('发送通知失败:', e);
+        }
+      }
+      
+      return json({ success: true, checked: results.length, sent });
     }
     
     return json({ error: 'API路由未找到' }, 404);
