@@ -103,7 +103,7 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const canToggleTelegramChat = (chat) => {
-    return chat.label.trim() !== '' && chat.chat_id.trim() !== '' && telegramBotToken.trim() !== ''
+    return (chat.label || '').trim() !== '' && (chat.chat_id || '').trim() !== '' && (telegramBotToken || '').trim() !== ''
   }
 
   const handleSaveTelegram = async () => {
@@ -159,8 +159,8 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const canToggleEmailReceiver = (receiver) => {
-    return receiver.label.trim() !== '' && receiver.email.trim() !== '' && 
-           emailSmtp.smtp_host.trim() !== '' && emailSmtp.smtp_user.trim() !== ''
+    return (receiver.label || '').trim() !== '' && (receiver.email || '').trim() !== '' && 
+           (emailSmtp.smtp_host || '').trim() !== '' && (emailSmtp.smtp_user || '').trim() !== ''
   }
 
   const handleSaveEmail = async () => {
@@ -338,27 +338,25 @@ export default function SettingsPage({ showSuccess, showError }) {
                     />
                     {renderSwitchStatus(chat.enabled)}
                   </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  {telegramChats.length > 1 && (
                     <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleTestTelegramChat(chat)}
-                      disabled={!telegramEnabled || !canToggleTelegramChat(chat) || testingChatId === chat.id}
+                      className="btn btn-danger btn-sm"
+                      onClick={() => removeTelegramChat(chat.id)}
                       style={{ padding: '2px 8px', fontSize: '11px' }}
                     >
-                      {testingChatId === chat.id ? '...' : '测试'}
+                      ×
                     </button>
-                    {telegramChats.length > 1 && (
-                      <button 
-                        className="btn btn-danger btn-sm"
-                        onClick={() => removeTelegramChat(chat.id)}
-                        style={{ padding: '2px 8px', fontSize: '11px' }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleTestTelegramChat(chat)}
+                    disabled={!telegramEnabled || !canToggleTelegramChat(chat) || testingChatId === chat.id}
+                    style={{ padding: '6px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  >
+                    {testingChatId === chat.id ? '发送中...' : '测试通知'}
+                  </button>
                   <input
                     className="input"
                     value={chat.label}
@@ -367,9 +365,9 @@ export default function SettingsPage({ showSuccess, showError }) {
                         updateTelegramChat(chat.id, 'label', e.target.value)
                       }
                     }}
-                    placeholder="标签（最多4中文或8英文）"
+                    placeholder="标签"
                     disabled={!telegramEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                    style={{ fontSize: '12px', padding: '8px 10px', flex: '0 0 120px' }}
                   />
                   <input
                     className="input"
@@ -377,7 +375,7 @@ export default function SettingsPage({ showSuccess, showError }) {
                     onChange={(e) => updateTelegramChat(chat.id, 'chat_id', e.target.value)}
                     placeholder="Chat ID"
                     disabled={!telegramEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                    style={{ fontSize: '12px', padding: '8px 10px', flex: 1 }}
                   />
                 </div>
               </div>
@@ -508,27 +506,25 @@ export default function SettingsPage({ showSuccess, showError }) {
                     />
                     {renderSwitchStatus(receiver.enabled)}
                   </div>
-                  <div style={{ display: 'flex', gap: '4px' }}>
+                  {emailReceivers.length > 1 && (
                     <button 
-                      className="btn btn-secondary btn-sm"
-                      onClick={() => handleTestEmailReceiver(receiver)}
-                      disabled={!emailEnabled || !canToggleEmailReceiver(receiver) || testingEmailId === receiver.id}
+                      className="btn btn-danger btn-sm"
+                      onClick={() => removeEmailReceiver(receiver.id)}
                       style={{ padding: '2px 8px', fontSize: '11px' }}
                     >
-                      {testingEmailId === receiver.id ? '...' : '测试'}
+                      ×
                     </button>
-                    {emailReceivers.length > 1 && (
-                      <button 
-                        className="btn btn-danger btn-sm"
-                        onClick={() => removeEmailReceiver(receiver.id)}
-                        style={{ padding: '2px 8px', fontSize: '11px' }}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => handleTestEmailReceiver(receiver)}
+                    disabled={!emailEnabled || !canToggleEmailReceiver(receiver) || testingEmailId === receiver.id}
+                    style={{ padding: '6px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                  >
+                    {testingEmailId === receiver.id ? '发送中...' : '测试通知'}
+                  </button>
                   <input
                     className="input"
                     value={receiver.label}
@@ -537,9 +533,9 @@ export default function SettingsPage({ showSuccess, showError }) {
                         updateEmailReceiver(receiver.id, 'label', e.target.value)
                       }
                     }}
-                    placeholder="标签（最多4中文或8英文）"
+                    placeholder="标签"
                     disabled={!emailEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                    style={{ fontSize: '12px', padding: '8px 10px', flex: '0 0 120px' }}
                   />
                   <input
                     className="input"
@@ -547,7 +543,7 @@ export default function SettingsPage({ showSuccess, showError }) {
                     onChange={(e) => updateEmailReceiver(receiver.id, 'email', e.target.value)}
                     placeholder="收件人邮箱"
                     disabled={!emailEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px' }}
+                    style={{ fontSize: '12px', padding: '8px 10px', flex: 1 }}
                   />
                 </div>
               </div>
