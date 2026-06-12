@@ -18,11 +18,14 @@ export default function SettingsPage({ showSuccess, showError }) {
   // Telegram 设置
   const [telegramEnabled, setTelegramEnabled] = useState(false)
   const [telegramBotToken, setTelegramBotToken] = useState('')
-  const [telegramChats, setTelegramChats] = useState([
-    { id: Date.now(), label: '', chat_id: '', enabled: false }
-  ])
+  const [telegramChats, setTelegramChats] = useState([])
   const [telegramLoading, setTelegramLoading] = useState(false)
-  const [testingChatId, setTestingChatId] = useState(null)
+  
+  // Telegram 模态框
+  const [telegramModalVisible, setTelegramModalVisible] = useState(false)
+  const [telegramEditingId, setTelegramEditingId] = useState(null)
+  const [telegramForm, setTelegramForm] = useState({ label: '', chat_id: '' })
+  const [telegramTestLoading, setTelegramTestLoading] = useState(false)
   
   // 邮件设置
   const [emailEnabled, setEmailEnabled] = useState(false)
@@ -32,11 +35,14 @@ export default function SettingsPage({ showSuccess, showError }) {
     smtp_user: '',
     smtp_password: '',
   })
-  const [emailReceivers, setEmailReceivers] = useState([
-    { id: Date.now(), label: '', email: '', enabled: false }
-  ])
+  const [emailReceivers, setEmailReceivers] = useState([])
   const [emailLoading, setEmailLoading] = useState(false)
-  const [testingEmailId, setTestingEmailId] = useState(null)
+  
+  // 邮件模态框
+  const [emailModalVisible, setEmailModalVisible] = useState(false)
+  const [emailEditingId, setEmailEditingId] = useState(null)
+  const [emailForm, setEmailForm] = useState({ label: '', email: '' })
+  const [emailTestLoading, setEmailTestLoading] = useState(false)
   
   // 通知标题设置
   const [notifySettings, setNotifySettings] = useState({
@@ -59,18 +65,14 @@ export default function SettingsPage({ showSuccess, showError }) {
       // Telegram 设置
       setTelegramEnabled(telegram.enabled || false)
       setTelegramBotToken(telegram.bot_token || '')
-      if (telegram.chats && telegram.chats.length > 0) {
-        setTelegramChats(telegram.chats)
-      }
+      setTelegramChats(telegram.chats || [])
       
       // 邮件设置
       setEmailEnabled(email.enabled || false)
       if (email.smtp) {
         setEmailSmtp(email.smtp)
       }
-      if (email.receivers && email.receivers.length > 0) {
-        setEmailReceivers(email.receivers)
-      }
+      setEmailReceivers(email.receivers || [])
       
       // 通知标题
       setNotifySettings(notify)
@@ -87,23 +89,72 @@ export default function SettingsPage({ showSuccess, showError }) {
     return chineseCount <= 4 && otherCount <= 8
   }
 
-  // Telegram 操作
-  const addTelegramChat = () => {
-    setTelegramChats([...telegramChats, { id: Date.now(), label: '', chat_id: '', enabled: false }])
+  // ============ Telegram 操作 ============
+  const openTelegramAdd = () => {
+    setTelegramEditingId(null)
+    setTelegramForm({ label: '', chat_id: '' })
+    setTelegramModalVisible(true)
   }
 
-  const removeTelegramChat = (id) => {
-    setTelegramChats(telegramChats.filter(chat => chat.id !== id))
+  const openTelegramEdit = (chat) => {
+    setTelegramEditingId(chat.id)
+    setTelegramForm({ label: chat.label, chat_id: chat.chat_id })
+    setTelegramModalVisible(true)
   }
 
-  const updateTelegramChat = (id, field, value) => {
-    setTelegramChats(telegramChats.map(chat => 
-      chat.id === id ? { ...chat, [field]: value } : chat
-    ))
+  const handleTelegramSave = () => {
+    if (!telegramForm.label.trim() || !telegramForm.chat_id.trim()) {
+      showError('请填写标签和Chat ID')
+      return
+    }
+
+    if (telegramEditingId) {
+      // 编辑
+      setTelegramChats(telegramChats.map(chat => 
+        chat.id === telegramEditingId 
+          ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
+          : chat
+      ))
+      showSuccess('Chat ID 已更新')
+    } else {
+      // 添加
+      setTelegramChats([...telegramChats, { 
+        id: Date.now(), 
+        label: telegramForm.label, 
+        chat_id: telegramForm.chat_id 
+      }])
+      showSuccess('Chat ID 已添加')
+    }
+    setTelegramModalVisible(false)
   }
 
-  const canToggleTelegramChat = (chat) => {
-    return (chat.label || '').trim() !== '' && (chat.chat_id || '').trim() !== '' && (telegramBotToken || '').trim() !== ''
+  const handleTelegramDelete = (id) => {
+    if (window.confirm('确定删除此 Chat ID？')) {
+      setTelegramChats(telegramChats.filter(chat => chat.id !== id))
+      showSuccess('Chat ID 已删除')
+    }
+  }
+
+  const handleTelegramTest = async () => {
+    if (!telegramBotToken || !telegramForm.chat_id) {
+      showError('请先填写Bot Token和Chat ID')
+      return
+    }
+    setTelegramTestLoading(true)
+    try {
+      const result = await testTelegram({ 
+        bot_token: telegramBotToken, 
+        chat_id: telegramForm.chat_id 
+      })
+      if (result.success) {
+        showSuccess('测试通知已发送')
+      } else {
+        showError('测试失败: ' + (result.error || '未知错误'))
+      }
+    } catch (error) {
+      showError('测试失败: 网络错误')
+    }
+    setTelegramTestLoading(false)
   }
 
   const handleSaveTelegram = async () => {
@@ -121,46 +172,70 @@ export default function SettingsPage({ showSuccess, showError }) {
     setTelegramLoading(false)
   }
 
-  const handleTestTelegramChat = async (chat) => {
-    if (!telegramBotToken || !chat.chat_id) {
-      showError('请先填写Bot Token和Chat ID')
+  // ============ 邮件操作 ============
+  const openEmailAdd = () => {
+    setEmailEditingId(null)
+    setEmailForm({ label: '', email: '' })
+    setEmailModalVisible(true)
+  }
+
+  const openEmailEdit = (receiver) => {
+    setEmailEditingId(receiver.id)
+    setEmailForm({ label: receiver.label, email: receiver.email })
+    setEmailModalVisible(true)
+  }
+
+  const handleEmailSave = () => {
+    if (!emailForm.label.trim() || !emailForm.email.trim()) {
+      showError('请填写标签和邮箱')
       return
     }
-    setTestingChatId(chat.id)
+
+    if (emailEditingId) {
+      setEmailReceivers(emailReceivers.map(r => 
+        r.id === emailEditingId 
+          ? { ...r, label: emailForm.label, email: emailForm.email }
+          : r
+      ))
+      showSuccess('收件人已更新')
+    } else {
+      setEmailReceivers([...emailReceivers, { 
+        id: Date.now(), 
+        label: emailForm.label, 
+        email: emailForm.email 
+      }])
+      showSuccess('收件人已添加')
+    }
+    setEmailModalVisible(false)
+  }
+
+  const handleEmailDelete = (id) => {
+    if (window.confirm('确定删除此收件人？')) {
+      setEmailReceivers(emailReceivers.filter(r => r.id !== id))
+      showSuccess('收件人已删除')
+    }
+  }
+
+  const handleEmailTest = async () => {
+    if (!emailSmtp.smtp_host || !emailSmtp.smtp_user || !emailForm.email) {
+      showError('请先填写SMTP设置和邮箱')
+      return
+    }
+    setEmailTestLoading(true)
     try {
-      const result = await testTelegram({ 
-        bot_token: telegramBotToken, 
-        chat_id: chat.chat_id 
+      const result = await testEmail({ 
+        smtp: emailSmtp,
+        email: emailForm.email 
       })
       if (result.success) {
-        showSuccess(`测试通知已发送至 ${chat.label || chat.chat_id}`)
+        showSuccess('测试邮件已发送')
       } else {
         showError('测试失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
       showError('测试失败: 网络错误')
     }
-    setTestingChatId(null)
-  }
-
-  // 邮件操作
-  const addEmailReceiver = () => {
-    setEmailReceivers([...emailReceivers, { id: Date.now(), label: '', email: '', enabled: false }])
-  }
-
-  const removeEmailReceiver = (id) => {
-    setEmailReceivers(emailReceivers.filter(r => r.id !== id))
-  }
-
-  const updateEmailReceiver = (id, field, value) => {
-    setEmailReceivers(emailReceivers.map(r => 
-      r.id === id ? { ...r, [field]: value } : r
-    ))
-  }
-
-  const canToggleEmailReceiver = (receiver) => {
-    return (receiver.label || '').trim() !== '' && (receiver.email || '').trim() !== '' && 
-           (emailSmtp.smtp_host || '').trim() !== '' && (emailSmtp.smtp_user || '').trim() !== ''
+    setEmailTestLoading(false)
   }
 
   const handleSaveEmail = async () => {
@@ -176,28 +251,6 @@ export default function SettingsPage({ showSuccess, showError }) {
       showError('保存失败')
     }
     setEmailLoading(false)
-  }
-
-  const handleTestEmailReceiver = async (receiver) => {
-    if (!emailSmtp.smtp_host || !emailSmtp.smtp_user || !receiver.email) {
-      showError('请先填写SMTP设置和收件人邮箱')
-      return
-    }
-    setTestingEmailId(receiver.id)
-    try {
-      const result = await testEmail({ 
-        smtp: emailSmtp,
-        email: receiver.email 
-      })
-      if (result.success) {
-        showSuccess(`测试邮件已发送至 ${receiver.label || receiver.email}`)
-      } else {
-        showError('测试失败: ' + (result.error || '未知错误'))
-      }
-    } catch (error) {
-      showError('测试失败: 网络错误')
-    }
-    setTestingEmailId(null)
   }
 
   // 通知标题操作
@@ -253,7 +306,7 @@ export default function SettingsPage({ showSuccess, showError }) {
         系统设置
       </h2>
 
-      {/* Telegram Bot 设置 - 左右布局 */}
+      {/* Telegram Bot 设置 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         {/* 左卡片：Telegram Bot 设置 */}
         <div className="card">
@@ -276,11 +329,6 @@ export default function SettingsPage({ showSuccess, showError }) {
               onClick={handleSaveTelegram} 
               disabled={telegramLoading}
             >
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={352} size={14} />
-              ) : (
-                <span>💾</span>
-              )}
               {telegramLoading ? '保存中...' : '保存设置'}
             </button>
           </div>
@@ -306,82 +354,62 @@ export default function SettingsPage({ showSuccess, showError }) {
             </h3>
             <button 
               className="btn btn-secondary btn-sm" 
-              onClick={addTelegramChat}
+              onClick={openTelegramAdd}
               disabled={!telegramEnabled}
               style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
             >
               + 添加
             </button>
           </div>
-          <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            {telegramChats.map((chat, index) => (
-              <div key={chat.id} style={{ 
-                marginBottom: index < telegramChats.length - 1 ? '12px' : 0,
-                padding: '12px',
-                background: 'var(--animal-bg-color)',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                border: '1px solid var(--animal-border-color-light)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
-                      #{index + 1}
-                    </span>
-                    <Switch 
-                      checked={chat.enabled} 
-                      onChange={(val) => updateTelegramChat(chat.id, 'enabled', val)}
-                      size="small"
-                      disabled={!telegramEnabled || !canToggleTelegramChat(chat)}
-                    />
-                    {renderSwitchStatus(chat.enabled)}
-                  </div>
-                  {telegramChats.length > 1 && (
-                    <button 
-                      className="btn btn-danger btn-sm"
-                      onClick={() => removeTelegramChat(chat.id)}
-                      style={{ padding: '2px 8px', fontSize: '11px' }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleTestTelegramChat(chat)}
-                    disabled={!telegramEnabled || !canToggleTelegramChat(chat) || testingChatId === chat.id}
-                    style={{ padding: '6px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                  >
-                    {testingChatId === chat.id ? '发送中...' : '测试通知'}
-                  </button>
-                  <input
-                    className="input"
-                    value={chat.label}
-                    onChange={(e) => {
-                      if (validateLabel(e.target.value)) {
-                        updateTelegramChat(chat.id, 'label', e.target.value)
-                      }
-                    }}
-                    placeholder="标签"
-                    disabled={!telegramEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px', flex: '0 0 120px' }}
-                  />
-                  <input
-                    className="input"
-                    value={chat.chat_id}
-                    onChange={(e) => updateTelegramChat(chat.id, 'chat_id', e.target.value)}
-                    placeholder="Chat ID"
-                    disabled={!telegramEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px', flex: 1 }}
-                  />
-                </div>
+          <div className="card-body" style={{ padding: 0, maxHeight: '200px', overflowY: 'auto' }}>
+            {telegramChats.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
+                暂无 Chat ID
               </div>
-            ))}
+            ) : (
+              <table className="table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '100px' }}>操作</th>
+                    <th style={{ width: '50px' }}>序号</th>
+                    <th>标签</th>
+                    <th>Chat ID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {telegramChats.map((chat, index) => (
+                    <tr key={chat.id}>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openTelegramEdit(chat)}
+                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                          >
+                            编辑
+                          </button>
+                          <button 
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleTelegramDelete(chat.id)}
+                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </td>
+                      <td>{index + 1}</td>
+                      <td>{chat.label}</td>
+                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
 
-      {/* 邮件通知设置 - 左右布局 */}
+      {/* 邮件通知设置 */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
         {/* 左卡片：邮件通知设置 */}
         <div className="card">
@@ -404,11 +432,6 @@ export default function SettingsPage({ showSuccess, showError }) {
               onClick={handleSaveEmail} 
               disabled={emailLoading}
             >
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={352} size={14} />
-              ) : (
-                <span>💾</span>
-              )}
               {emailLoading ? '保存中...' : '保存设置'}
             </button>
           </div>
@@ -473,87 +496,74 @@ export default function SettingsPage({ showSuccess, showError }) {
             </h3>
             <button 
               className="btn btn-secondary btn-sm" 
-              onClick={addEmailReceiver}
+              onClick={openEmailAdd}
               disabled={!emailEnabled}
               style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
             >
               + 添加
             </button>
           </div>
-          <div className="card-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            {emailReceivers.map((receiver, index) => (
-              <div key={receiver.id} style={{ 
-                marginBottom: index < emailReceivers.length - 1 ? '12px' : 0,
-                padding: '12px',
-                background: 'var(--animal-bg-color)',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                border: '1px solid var(--animal-border-color-light)',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--animal-text-color)' }}>
-                      #{index + 1}
-                    </span>
-                    <Switch 
-                      checked={receiver.enabled} 
-                      onChange={(val) => updateEmailReceiver(receiver.id, 'enabled', val)}
-                      size="small"
-                      disabled={!emailEnabled || !canToggleEmailReceiver(receiver)}
-                    />
-                    {renderSwitchStatus(receiver.enabled)}
-                  </div>
-                  {emailReceivers.length > 1 && (
-                    <button 
-                      className="btn btn-danger btn-sm"
-                      onClick={() => removeEmailReceiver(receiver.id)}
-                      style={{ padding: '2px 8px', fontSize: '11px' }}
-                    >
-                      ×
-                    </button>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <button 
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleTestEmailReceiver(receiver)}
-                    disabled={!emailEnabled || !canToggleEmailReceiver(receiver) || testingEmailId === receiver.id}
-                    style={{ padding: '6px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                  >
-                    {testingEmailId === receiver.id ? '发送中...' : '测试通知'}
-                  </button>
-                  <input
-                    className="input"
-                    value={receiver.label}
-                    onChange={(e) => {
-                      if (validateLabel(e.target.value)) {
-                        updateEmailReceiver(receiver.id, 'label', e.target.value)
-                      }
-                    }}
-                    placeholder="标签"
-                    disabled={!emailEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px', flex: '0 0 120px' }}
-                  />
-                  <input
-                    className="input"
-                    value={receiver.email}
-                    onChange={(e) => updateEmailReceiver(receiver.id, 'email', e.target.value)}
-                    placeholder="收件人邮箱"
-                    disabled={!emailEnabled}
-                    style={{ fontSize: '12px', padding: '8px 10px', flex: 1 }}
-                  />
-                </div>
+          <div className="card-body" style={{ padding: 0, maxHeight: '200px', overflowY: 'auto' }}>
+            {emailReceivers.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
+                暂无收件人
               </div>
-            ))}
+            ) : (
+              <table className="table" style={{ margin: 0 }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '100px' }}>操作</th>
+                    <th style={{ width: '50px' }}>序号</th>
+                    <th>标签</th>
+                    <th>邮箱</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {emailReceivers.map((receiver, index) => (
+                    <tr key={receiver.id}>
+                      <td>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button 
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => openEmailEdit(receiver)}
+                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                          >
+                            编辑
+                          </button>
+                          <button 
+                            className="btn btn-danger btn-sm"
+                            onClick={() => handleEmailDelete(receiver.id)}
+                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </td>
+                      <td>{index + 1}</td>
+                      <td>{receiver.label}</td>
+                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       </div>
 
       {/* 通知标题设置 */}
       <div className="card">
-        <div className="card-header">
+        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
             通知标题设置
           </h3>
+          <button 
+            className="btn btn-primary btn-sm" 
+            onClick={handleSaveNotify} 
+            disabled={notifyLoading}
+          >
+            {notifyLoading ? '保存中...' : '保存设置'}
+          </button>
         </div>
         <div className="card-body">
           <div className="form-group">
@@ -579,20 +589,146 @@ export default function SettingsPage({ showSuccess, showError }) {
               {notifyPreview}
             </div>
           </div>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleSaveNotify} 
-            disabled={notifyLoading}
-          >
-            {currentTheme === 'animal-forest' ? (
-              <Icon item={352} size={16} />
-            ) : (
-              <span>💾</span>
-            )}
-            {notifyLoading ? '保存中...' : '保存设置'}
-          </button>
         </div>
       </div>
+
+      {/* Telegram Chat ID 模态框 */}
+      {telegramModalVisible && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                {telegramEditingId ? '编辑 Chat ID' : '添加 Chat ID'}
+              </h3>
+              <button 
+                className="modal-close"
+                onClick={() => setTelegramModalVisible(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">
+                  自定义标签
+                  <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>
+                    (最多4个中文或8个英文)
+                  </span>
+                </label>
+                <input
+                  className="input"
+                  value={telegramForm.label}
+                  onChange={(e) => {
+                    if (validateLabel(e.target.value)) {
+                      setTelegramForm({...telegramForm, label: e.target.value})
+                    }
+                  }}
+                  placeholder="例如：工作群"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Chat ID</label>
+                <input
+                  className="input"
+                  value={telegramForm.chat_id}
+                  onChange={(e) => setTelegramForm({...telegramForm, chat_id: e.target.value})}
+                  placeholder="请输入Chat ID"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setTelegramModalVisible(false)}
+              >
+                取消
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleTelegramTest}
+                disabled={telegramTestLoading || !telegramBotToken || !telegramForm.chat_id}
+              >
+                {telegramTestLoading ? '发送中...' : '测试通知'}
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleTelegramSave}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 邮件收件人模态框 */}
+      {emailModalVisible && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                {emailEditingId ? '编辑收件人' : '添加收件人'}
+              </h3>
+              <button 
+                className="modal-close"
+                onClick={() => setEmailModalVisible(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">
+                  自定义标签
+                  <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>
+                    (最多4个中文或8个英文)
+                  </span>
+                </label>
+                <input
+                  className="input"
+                  value={emailForm.label}
+                  onChange={(e) => {
+                    if (validateLabel(e.target.value)) {
+                      setEmailForm({...emailForm, label: e.target.value})
+                    }
+                  }}
+                  placeholder="例如：个人邮箱"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">收件人邮箱</label>
+                <input
+                  className="input"
+                  value={emailForm.email}
+                  onChange={(e) => setEmailForm({...emailForm, email: e.target.value})}
+                  placeholder="receiver@email.com"
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => setEmailModalVisible(false)}
+              >
+                取消
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={handleEmailTest}
+                disabled={emailTestLoading || !emailSmtp.smtp_host || !emailForm.email}
+              >
+                {emailTestLoading ? '发送中...' : '测试通知'}
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handleEmailSave}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

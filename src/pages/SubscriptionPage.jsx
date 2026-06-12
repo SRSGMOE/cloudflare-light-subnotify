@@ -60,10 +60,10 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
       
       const channels = []
       
-      // Telegram 渠道
+      // Telegram 渠道 - 只在总开关打开时显示
       if (telegram.enabled && telegram.chats) {
         telegram.chats.forEach((chat, index) => {
-          if (chat.enabled && chat.chat_id) {
+          if (chat.chat_id) {
             channels.push({
               key: `tg_${chat.id}`,
               type: 'telegram',
@@ -74,10 +74,10 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         })
       }
       
-      // 邮件渠道
+      // 邮件渠道 - 只在总开关打开时显示
       if (email.enabled && email.receivers) {
         email.receivers.forEach((receiver, index) => {
-          if (receiver.enabled && receiver.email) {
+          if (receiver.email) {
             channels.push({
               key: `email_${receiver.id}`,
               type: 'email',
