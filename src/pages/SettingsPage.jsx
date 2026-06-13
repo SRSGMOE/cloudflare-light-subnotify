@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Icon, Switch } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
+import ConfirmModal from '../components/ConfirmModal.jsx'
 import { 
   getTelegramSettings, 
   saveTelegramSettings, 
@@ -49,6 +50,15 @@ export default function SettingsPage({ showSuccess, showError }) {
     title: '订阅到期提醒',
   })
   const [notifyLoading, setNotifyLoading] = useState(false)
+  
+  // 确认弹窗状态
+  const [confirmModal, setConfirmModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    type: 'warning'
+  })
 
   useEffect(() => {
     fetchSettings()
@@ -109,57 +119,66 @@ export default function SettingsPage({ showSuccess, showError }) {
     }
 
     const action = telegramEditingId ? '更新' : '添加'
-    if (window.confirm(`确定${action}此 Chat ID 吗？`)) {
-      let newChats
-      if (telegramEditingId) {
-        newChats = telegramChats.map(chat => 
-          chat.id === telegramEditingId 
-            ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
-            : chat
-        )
-      } else {
-        newChats = [...telegramChats, { 
-          id: Date.now(), 
-          label: telegramForm.label, 
-          chat_id: telegramForm.chat_id 
-        }]
+    showConfirm(
+      `确认${action}`,
+      `确定${action}此 Chat ID 吗？`,
+      async () => {
+        let newChats
+        if (telegramEditingId) {
+          newChats = telegramChats.map(chat => 
+            chat.id === telegramEditingId 
+              ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
+              : chat
+          )
+        } else {
+          newChats = [...telegramChats, { 
+            id: Date.now(), 
+            label: telegramForm.label, 
+            chat_id: telegramForm.chat_id 
+          }]
+        }
+        
+        // 更新本地状态
+        setTelegramChats(newChats)
+        setTelegramModalVisible(false)
+        
+        // 自动保存到数据库
+        try {
+          await saveTelegramSettings({ 
+            enabled: telegramEnabled, 
+            bot_token: telegramBotToken,
+            chats: newChats 
+          })
+          showSuccess(telegramEditingId ? 'Chat ID 已更新并保存' : 'Chat ID 已添加并保存')
+        } catch (error) {
+          showError('保存失败')
+        }
       }
-      
-      // 更新本地状态
-      setTelegramChats(newChats)
-      setTelegramModalVisible(false)
-      
-      // 自动保存到数据库
-      try {
-        await saveTelegramSettings({ 
-          enabled: telegramEnabled, 
-          bot_token: telegramBotToken,
-          chats: newChats 
-        })
-        showSuccess(telegramEditingId ? 'Chat ID 已更新并保存' : 'Chat ID 已添加并保存')
-      } catch (error) {
-        showError('保存失败')
-      }
-    }
+    )
   }
 
   const handleTelegramDelete = async (id) => {
-    if (window.confirm('确定删除此 Chat ID？')) {
-      const newChats = telegramChats.filter(chat => chat.id !== id)
-      setTelegramChats(newChats)
-      
-      // 自动保存到数据库
-      try {
-        await saveTelegramSettings({ 
-          enabled: telegramEnabled, 
-          bot_token: telegramBotToken,
-          chats: newChats 
-        })
-        showSuccess('Chat ID 已删除')
-      } catch (error) {
-        showError('删除失败')
-      }
-    }
+    showConfirm(
+      '确认删除',
+      '确定删除此 Chat ID 吗？',
+      async () => {
+        const newChats = telegramChats.filter(chat => chat.id !== id)
+        setTelegramChats(newChats)
+        
+        // 自动保存到数据库
+        try {
+          await saveTelegramSettings({ 
+            enabled: telegramEnabled, 
+            bot_token: telegramBotToken,
+            chats: newChats 
+          })
+          showSuccess('Chat ID 已删除')
+        } catch (error) {
+          showError('删除失败')
+        }
+      },
+      'danger'
+    )
   }
 
   const handleTelegramTest = async () => {
@@ -219,57 +238,66 @@ export default function SettingsPage({ showSuccess, showError }) {
     }
 
     const action = emailEditingId ? '更新' : '添加'
-    if (window.confirm(`确定${action}此收件人吗？`)) {
-      let newReceivers
-      if (emailEditingId) {
-        newReceivers = emailReceivers.map(r => 
-          r.id === emailEditingId 
-            ? { ...r, label: emailForm.label, email: emailForm.email }
-            : r
-        )
-      } else {
-        newReceivers = [...emailReceivers, { 
-          id: Date.now(), 
-          label: emailForm.label, 
-          email: emailForm.email 
-        }]
+    showConfirm(
+      `确认${action}`,
+      `确定${action}此收件人吗？`,
+      async () => {
+        let newReceivers
+        if (emailEditingId) {
+          newReceivers = emailReceivers.map(r => 
+            r.id === emailEditingId 
+              ? { ...r, label: emailForm.label, email: emailForm.email }
+              : r
+          )
+        } else {
+          newReceivers = [...emailReceivers, { 
+            id: Date.now(), 
+            label: emailForm.label, 
+            email: emailForm.email 
+          }]
+        }
+        
+        // 更新本地状态
+        setEmailReceivers(newReceivers)
+        setEmailModalVisible(false)
+        
+        // 自动保存到数据库
+        try {
+          await saveEmailSettings({ 
+            enabled: emailEnabled, 
+            smtp: emailSmtp,
+            receivers: newReceivers 
+          })
+          showSuccess(emailEditingId ? '收件人已更新并保存' : '收件人已添加并保存')
+        } catch (error) {
+          showError('保存失败')
+        }
       }
-      
-      // 更新本地状态
-      setEmailReceivers(newReceivers)
-      setEmailModalVisible(false)
-      
-      // 自动保存到数据库
-      try {
-        await saveEmailSettings({ 
-          enabled: emailEnabled, 
-          smtp: emailSmtp,
-          receivers: newReceivers 
-        })
-        showSuccess(emailEditingId ? '收件人已更新并保存' : '收件人已添加并保存')
-      } catch (error) {
-        showError('保存失败')
-      }
-    }
+    )
   }
 
   const handleEmailDelete = async (id) => {
-    if (window.confirm('确定删除此收件人？')) {
-      const newReceivers = emailReceivers.filter(r => r.id !== id)
-      setEmailReceivers(newReceivers)
-      
-      // 自动保存到数据库
-      try {
-        await saveEmailSettings({ 
-          enabled: emailEnabled, 
-          smtp: emailSmtp,
-          receivers: newReceivers 
-        })
-        showSuccess('收件人已删除')
-      } catch (error) {
-        showError('删除失败')
-      }
-    }
+    showConfirm(
+      '确认删除',
+      '确定删除此收件人吗？',
+      async () => {
+        const newReceivers = emailReceivers.filter(r => r.id !== id)
+        setEmailReceivers(newReceivers)
+        
+        // 自动保存到数据库
+        try {
+          await saveEmailSettings({ 
+            enabled: emailEnabled, 
+            smtp: emailSmtp,
+            receivers: newReceivers 
+          })
+          showSuccess('收件人已删除')
+        } catch (error) {
+          showError('删除失败')
+        }
+      },
+      'danger'
+    )
   }
 
   const handleEmailTest = async () => {
@@ -319,6 +347,25 @@ export default function SettingsPage({ showSuccess, showError }) {
       showError('保存失败')
     }
     setNotifyLoading(false)
+  }
+
+  // 显示确认弹窗
+  const showConfirm = (title, message, onConfirm, type = 'warning') => {
+    setConfirmModal({
+      visible: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmModal({ ...confirmModal, visible: false })
+        onConfirm()
+      },
+      type
+    })
+  }
+  
+  // 关闭确认弹窗
+  const hideConfirm = () => {
+    setConfirmModal({ ...confirmModal, visible: false })
   }
 
   const notifyPreview = `📢 ${notifySettings.title || '订阅到期提醒'}
@@ -702,11 +749,7 @@ export default function SettingsPage({ showSuccess, showError }) {
               </button>
               <button 
                 className="btn btn-secondary" 
-                onClick={() => {
-                  if (window.confirm('确定取消吗？')) {
-                    setTelegramModalVisible(false)
-                  }
-                }}
+                onClick={() => setTelegramModalVisible(false)}
               >
                 取消
               </button>
@@ -775,11 +818,7 @@ export default function SettingsPage({ showSuccess, showError }) {
               </button>
               <button 
                 className="btn btn-secondary" 
-                onClick={() => {
-                  if (window.confirm('确定取消吗？')) {
-                    setEmailModalVisible(false)
-                  }
-                }}
+                onClick={() => setEmailModalVisible(false)}
               >
                 取消
               </button>
@@ -793,6 +832,16 @@ export default function SettingsPage({ showSuccess, showError }) {
           </div>
         </div>
       )}
+      
+      {/* 确认弹窗 */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        type={confirmModal.type}
+      />
     </div>
   )
 }

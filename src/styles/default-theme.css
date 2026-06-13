@@ -186,7 +186,6 @@
   background: var(--animal-bg-color-secondary);
   border-color: var(--animal-border-color);
   color: var(--animal-text-color);
-  transform: none;
 }
 
 /* 默认主题 - 时间卡片 */

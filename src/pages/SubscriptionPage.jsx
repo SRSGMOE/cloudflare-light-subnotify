@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Icon, Checkbox } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
+import ConfirmModal from '../components/ConfirmModal.jsx'
 import { 
   createSubscription, 
   updateSubscription, 
@@ -12,12 +13,17 @@ import {
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
   const { currentTheme } = useTheme()
   const [modalVisible, setModalVisible] = useState(false)
-  const [confirmVisible, setConfirmVisible] = useState(false)
-  const [confirmAction, setConfirmAction] = useState(null)
-  const [confirmTitle, setConfirmTitle] = useState('')
-  const [confirmMessage, setConfirmMessage] = useState('')
   const [editingId, setEditingId] = useState(null)
   const [loading, setLoading] = useState(false)
+  
+  // 确认弹窗状态
+  const [confirmModal, setConfirmModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: null,
+    type: 'warning'
+  })
   
   // 通知途径选项
   const [notifyChannels, setNotifyChannels] = useState([])
@@ -125,26 +131,22 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
   }
 
   // 显示确认弹窗
-  const showConfirm = (title, message, action) => {
-    setConfirmTitle(title)
-    setConfirmMessage(message)
-    setConfirmAction(() => action)
-    setConfirmVisible(true)
+  const showConfirm = (title, message, onConfirm, type = 'warning') => {
+    setConfirmModal({
+      visible: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmModal({ ...confirmModal, visible: false })
+        onConfirm()
+      },
+      type
+    })
   }
-
-  // 执行确认操作
-  const handleConfirm = async () => {
-    if (confirmAction) {
-      await confirmAction()
-    }
-    setConfirmVisible(false)
-    setConfirmAction(null)
-  }
-
-  // 取消确认
-  const handleCancelConfirm = () => {
-    setConfirmVisible(false)
-    setConfirmAction(null)
+  
+  // 关闭确认弹窗
+  const hideConfirm = () => {
+    setConfirmModal({ ...confirmModal, visible: false })
   }
 
   const handleAdd = () => {
@@ -719,42 +721,15 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         </div>
       )}
 
-      {/* 二次确认弹窗 */}
-      {confirmVisible && (
-        <div className="modal-overlay">
-          <div className="modal-content" style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
-                {confirmTitle}
-              </h3>
-              <button 
-                className="modal-close"
-                onClick={handleCancelConfirm}
-              >
-                ×
-              </button>
-            </div>
-            <div className="modal-body">
-              <p style={{ 
-                fontSize: '14px', 
-                color: 'var(--animal-text-color)',
-                lineHeight: '1.6',
-                margin: 0,
-              }}>
-                {confirmMessage}
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={handleCancelConfirm}>
-                取消
-              </button>
-              <button className="btn btn-primary" onClick={handleConfirm}>
-                确认
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 确认弹窗 */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        type={confirmModal.type}
+      />
     </div>
   )
 }

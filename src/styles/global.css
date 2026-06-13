@@ -343,7 +343,7 @@ body {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.15s ease;
 }
 
 @keyframes fadeIn {
@@ -354,11 +354,11 @@ body {
 @keyframes slideUp {
   from { 
     opacity: 0;
-    transform: translateY(20px) scale(0.98);
+    transform: translateY(16px);
   }
   to { 
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 
@@ -369,15 +369,15 @@ body {
   max-width: 500px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  border: 2px solid var(--animal-border-color-light);
-  animation: slideUp 0.3s ease;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--animal-border-color-light);
+  animation: slideUp 0.2s ease;
 }
 
 .modal-header {
   padding: 20px 24px;
   background: var(--animal-bg-color-secondary);
-  border-bottom: 2px solid var(--animal-border-color-light);
+  border-bottom: 1px solid var(--animal-border-color-light);
   border-radius: 20px 20px 0 0;
   display: flex;
   justify-content: space-between;
@@ -394,7 +394,7 @@ body {
 .modal-close {
   width: 32px;
   height: 32px;
-  border: 2px solid var(--animal-border-color);
+  border: 1px solid var(--animal-border-color);
   border-radius: 50%;
   background: var(--animal-bg-color);
   cursor: pointer;
@@ -403,14 +403,13 @@ body {
   justify-content: center;
   font-size: 18px;
   color: var(--animal-text-color-secondary);
-  transition: all 0.2s;
+  transition: all 0.15s ease;
 }
 
 .modal-close:hover {
   background: var(--animal-error-color);
   border-color: var(--animal-error-color);
   color: #fff;
-  transform: rotate(90deg);
 }
 
 .modal-body {
@@ -419,7 +418,7 @@ body {
 
 .modal-footer {
   padding: 16px 24px;
-  border-top: 2px solid var(--animal-border-color-light);
+  border-top: 1px solid var(--animal-border-color-light);
   display: flex;
   justify-content: flex-end;
   gap: 12px;
