@@ -7,7 +7,8 @@ import {
   updateSubscription, 
   deleteSubscription,
   getTelegramSettings,
-  getEmailSettings
+  getEmailSettings,
+  getMiaoSettings
 } from '../api'
 
 export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess, showError }) {
@@ -71,9 +72,10 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
 
   const fetchNotifyChannels = async () => {
     try {
-      const [telegram, email] = await Promise.all([
+      const [telegram, email, miao] = await Promise.all([
         getTelegramSettings(),
-        getEmailSettings()
+        getEmailSettings(),
+        getMiaoSettings()
       ])
       
       const channels = []
@@ -87,7 +89,6 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
               type: 'telegram',
               icon: '🤖',
               label: chat.label ? `Telegram Bot（${chat.label}）` : `Telegram Bot #${index + 1}`,
-              chat_id: chat.chat_id,
             })
           }
         })
@@ -102,7 +103,20 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
               type: 'email',
               icon: '📧',
               label: receiver.label ? `邮件（${receiver.label}）` : `邮件 #${index + 1}`,
-              email: receiver.email,
+            })
+          }
+        })
+      }
+      
+      // 喵提醒渠道 - 只在总开关打开时显示
+      if (miao.enabled && miao.codes) {
+        miao.codes.forEach((item, index) => {
+          if (item.code) {
+            channels.push({
+              key: `miao_${item.id}`,
+              type: 'miao',
+              icon: '⏰',
+              label: item.label ? `喵提醒（${item.label}）` : `喵提醒 #${index + 1}`,
             })
           }
         })

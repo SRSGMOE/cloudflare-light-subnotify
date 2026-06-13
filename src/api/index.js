@@ -107,9 +107,31 @@ export async function saveEmailSettings(data) {
   return response.json()
 }
 
-export async function testEmail() {
+export async function testEmail(data) {
   const response = await fetchApi('/test-email', {
     method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function getMiaoSettings() {
+  const response = await fetchApi('/miao-settings')
+  return response.json()
+}
+
+export async function saveMiaoSettings(data) {
+  const response = await fetchApi('/miao-settings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function testMiao(data) {
+  const response = await fetchApi('/test-miao', {
+    method: 'POST',
+    body: JSON.stringify(data),
   })
   return response.json()
 }

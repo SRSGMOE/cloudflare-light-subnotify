@@ -92,28 +92,32 @@ export async function onRequest(context) {
         "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('telegram_config', ?)"
       ).bind(JSON.stringify(body)).run();
       
-      // 注册命令
-      if (body.enabled && body.chats && body.chats.length > 0) {
-        // 从第一个启用的chat获取bot token（需要额外存储）
-        // 这里暂时使用环境变量
-        const botToken = env.TELEGRAM_BOT_TOKEN || '';
-        if (botToken) {
-          try {
-            await fetch('https://api.telegram.org/bot' + botToken + '/setMyCommands', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                commands: [
-                  { command: 'start', description: '开始使用' },
-                  { command: 'help', description: '查看帮助' },
-                  { command: 'list', description: '查看订阅列表' },
-                  { command: 'today', description: '查看今日待通知' },
-                  { command: 'status', description: '查看系统状态' }
-                ]
-              })
-            });
-          } catch (e) {}
-        }
+      // 注册命令和设置Webhook
+      if (body.enabled && body.bot_token && body.chats && body.chats.length > 0) {
+        try {
+          await fetch('https://api.telegram.org/bot' + body.bot_token + '/setMyCommands', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              commands: [
+                { command: 'start', description: '开始使用' },
+                { command: 'help', description: '查看帮助' },
+                { command: 'list', description: '查看订阅列表' },
+                { command: 'today', description: '查看今日待通知' },
+                { command: 'status', description: '查看系统状态' }
+              ]
+            })
+          });
+          // 设置Webhook
+          const host = request.headers.get('host') || '';
+          const protocol = request.headers.get('x-forwarded-proto') || 'https';
+          const webhookUrl = protocol + '://' + host + '/webhook/telegram';
+          await fetch('https://api.telegram.org/bot' + body.bot_token + '/setWebhook', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: webhookUrl })
+          });
+        } catch (e) {}
       }
       return json({ success: true });
     }
@@ -123,6 +127,7 @@ export async function onRequest(context) {
       const body = await request.json();
       const botToken = body.bot_token || '';
       const chatId = body.chat_id || '';
+      const message = body.message || '测试通知';
       if (!botToken || !chatId) {
         return json({ success: false, error: '请提供Bot Token和Chat ID' });
       }
@@ -155,7 +160,7 @@ export async function onRequest(context) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: chatId,
-          text: '✅ Bot已连接！\n\n📋 已注册命令\n🔗 Webhook: ' + webhookUrl
+          text: message
         })
       });
       const data = await res.json();
@@ -303,6 +308,48 @@ export async function onRequest(context) {
         success: true, 
         message: '测试邮件功能需要配置外部邮件服务（如 SendGrid、Mailgun）' 
       });
+    }
+    
+    // 喵提醒设置
+    if (path === '/miao-settings' && method === 'GET') {
+      const { results } = await env.DB.prepare(
+        "SELECT value FROM notify_settings WHERE key='miao_config'"
+      ).all();
+      if (results.length > 0) {
+        try {
+          return json(JSON.parse(results[0].value));
+        } catch (e) {
+          return json({ enabled: false, codes: [] });
+        }
+      }
+      return json({ enabled: false, codes: [] });
+    }
+    
+    if (path === '/miao-settings' && method === 'POST') {
+      const body = await request.json();
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('miao_config', ?)"
+      ).bind(JSON.stringify(body)).run();
+      return json({ success: true });
+    }
+    
+    // 测试喵提醒
+    if (path === '/test-miao' && method === 'POST') {
+      const body = await request.json();
+      const code = body.code || '';
+      const message = body.message || '测试通知';
+      
+      if (!code) {
+        return json({ success: false, error: '请提供喵码' });
+      }
+      
+      try {
+        const res = await fetch('https://miaotixing.com/trigger?id=' + code + '&text=' + encodeURIComponent(message) + '&type=json');
+        const data = await res.json();
+        return json({ success: data.code === 0 || data.code === 200, error: data.msg || '' });
+      } catch (error) {
+        return json({ success: false, error: error.message });
+      }
     }
     
     // 手动触发通知检查

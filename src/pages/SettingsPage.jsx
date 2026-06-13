@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Icon, Switch } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
@@ -10,7 +10,10 @@ import {
   saveNotifySettings,
   getEmailSettings,
   saveEmailSettings,
-  testEmail
+  testEmail,
+  getMiaoSettings,
+  saveMiaoSettings,
+  testMiao
 } from '../api'
 
 export default function SettingsPage({ showSuccess, showError }) {
@@ -26,7 +29,11 @@ export default function SettingsPage({ showSuccess, showError }) {
   const [telegramModalVisible, setTelegramModalVisible] = useState(false)
   const [telegramEditingId, setTelegramEditingId] = useState(null)
   const [telegramForm, setTelegramForm] = useState({ label: '', chat_id: '' })
-  const [telegramTestLoading, setTelegramTestLoading] = useState(false)
+  
+  // 测试按钮冷却时间记录
+  const telegramTestCooldown = useRef({})
+  const emailTestCooldown = useRef({})
+  const miaoTestCooldown = useRef({})
   
   // 邮件设置
   const [emailEnabled, setEmailEnabled] = useState(false)
@@ -43,7 +50,16 @@ export default function SettingsPage({ showSuccess, showError }) {
   const [emailModalVisible, setEmailModalVisible] = useState(false)
   const [emailEditingId, setEmailEditingId] = useState(null)
   const [emailForm, setEmailForm] = useState({ label: '', email: '' })
-  const [emailTestLoading, setEmailTestLoading] = useState(false)
+  
+  // 喵提醒设置
+  const [miaoEnabled, setMiaoEnabled] = useState(false)
+  const [miaoCodes, setMiaoCodes] = useState([])
+  const [miaoLoading, setMiaoLoading] = useState(false)
+  
+  // 喵提醒模态框
+  const [miaoModalVisible, setMiaoModalVisible] = useState(false)
+  const [miaoEditingId, setMiaoEditingId] = useState(null)
+  const [miaoForm, setMiaoForm] = useState({ label: '', code: '' })
   
   // 通知标题设置
   const [notifySettings, setNotifySettings] = useState({
@@ -66,10 +82,11 @@ export default function SettingsPage({ showSuccess, showError }) {
 
   const fetchSettings = async () => {
     try {
-      const [telegram, notify, email] = await Promise.all([
+      const [telegram, notify, email, miao] = await Promise.all([
         getTelegramSettings(),
         getNotifySettings(),
-        getEmailSettings()
+        getEmailSettings(),
+        getMiaoSettings()
       ])
       
       setTelegramEnabled(telegram.enabled || false)
@@ -77,10 +94,11 @@ export default function SettingsPage({ showSuccess, showError }) {
       setTelegramChats(telegram.chats || [])
       
       setEmailEnabled(email.enabled || false)
-      if (email.smtp) {
-        setEmailSmtp(email.smtp)
-      }
+      if (email.smtp) setEmailSmtp(email.smtp)
       setEmailReceivers(email.receivers || [])
+      
+      setMiaoEnabled(miao.enabled || false)
+      setMiaoCodes(miao.codes || [])
       
       setNotifySettings(notify)
     } catch (error) {
@@ -110,6 +128,30 @@ export default function SettingsPage({ showSuccess, showError }) {
   
   const hideConfirm = () => {
     setConfirmModal({ ...confirmModal, visible: false })
+  }
+
+  // 检查冷却时间（5分钟）
+  const checkCooldown = (cooldownRef, id) => {
+    const now = Date.now()
+    const lastTime = cooldownRef.current[id] || 0
+    if (now - lastTime < 5 * 60 * 1000) {
+      const remaining = Math.ceil((5 * 60 * 1000 - (now - lastTime)) / 1000)
+      showError(`测试太频繁，请等待 ${remaining} 秒后再试`)
+      return false
+    }
+    cooldownRef.current[id] = now
+    return true
+  }
+
+  // 生成通知预览内容
+  const getPreviewMessage = () => {
+    const title = notifySettings.title || '订阅到期提醒'
+    return '📢 ' + title + '\n\n' +
+      '📦 - 订阅名称：示例订阅\n' +
+      '🔖 - 订阅内容：这是订阅内容示例\n' +
+      '🌏 - 当前时区：北京时间 UTC+8\n' +
+      '📮 - 通知周期：每周五 14:30\n' +
+      '📆 - 下次通知：2024-01-12 14:30'
   }
 
   // ============ Telegram 操作 ============
@@ -175,7 +217,6 @@ export default function SettingsPage({ showSuccess, showError }) {
       async () => {
         const newChats = telegramChats.filter(chat => chat.id !== id)
         setTelegramChats(newChats)
-        
         try {
           await saveTelegramSettings({ 
             enabled: telegramEnabled, 
@@ -191,26 +232,27 @@ export default function SettingsPage({ showSuccess, showError }) {
     )
   }
 
-  const handleTelegramTest = async () => {
-    if (!telegramBotToken || !telegramForm.chat_id) {
+  const handleTelegramTest = async (chat) => {
+    if (!checkCooldown(telegramTestCooldown, chat.id)) return
+    
+    if (!telegramBotToken || !chat.chat_id) {
       showError('请先填写Bot Token和Chat ID')
       return
     }
-    setTelegramTestLoading(true)
     try {
       const result = await testTelegram({ 
         bot_token: telegramBotToken, 
-        chat_id: telegramForm.chat_id 
+        chat_id: chat.chat_id,
+        message: getPreviewMessage()
       })
       if (result.success) {
-        showSuccess('测试通知已发送')
+        showSuccess(`测试通知已发送至 ${chat.label || chat.chat_id}`)
       } else {
         showError('测试失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
       showError('测试失败: 网络错误')
     }
-    setTelegramTestLoading(false)
   }
 
   const handleSaveTelegram = async () => {
@@ -291,7 +333,6 @@ export default function SettingsPage({ showSuccess, showError }) {
       async () => {
         const newReceivers = emailReceivers.filter(r => r.id !== id)
         setEmailReceivers(newReceivers)
-        
         try {
           await saveEmailSettings({ 
             enabled: emailEnabled, 
@@ -307,26 +348,27 @@ export default function SettingsPage({ showSuccess, showError }) {
     )
   }
 
-  const handleEmailTest = async () => {
-    if (!emailSmtp.smtp_host || !emailSmtp.smtp_user || !emailForm.email) {
+  const handleEmailTest = async (receiver) => {
+    if (!checkCooldown(emailTestCooldown, receiver.id)) return
+    
+    if (!emailSmtp.smtp_host || !emailSmtp.smtp_user || !receiver.email) {
       showError('请先填写SMTP设置和邮箱')
       return
     }
-    setEmailTestLoading(true)
     try {
       const result = await testEmail({ 
         smtp: emailSmtp,
-        email: emailForm.email 
+        email: receiver.email,
+        message: getPreviewMessage()
       })
       if (result.success) {
-        showSuccess('测试邮件已发送')
+        showSuccess(`测试邮件已发送至 ${receiver.label || receiver.email}`)
       } else {
         showError('测试失败: ' + (result.error || '未知错误'))
       }
     } catch (error) {
       showError('测试失败: 网络错误')
     }
-    setEmailTestLoading(false)
   }
 
   const handleSaveEmail = async () => {
@@ -344,6 +386,119 @@ export default function SettingsPage({ showSuccess, showError }) {
     setEmailLoading(false)
   }
 
+  // ============ 喵提醒操作 ============
+  const openMiaoAdd = () => {
+    setMiaoEditingId(null)
+    setMiaoForm({ label: '', code: '' })
+    setMiaoModalVisible(true)
+  }
+
+  const openMiaoEdit = (item) => {
+    setMiaoEditingId(item.id)
+    setMiaoForm({ label: item.label, code: item.code })
+    setMiaoModalVisible(true)
+  }
+
+  const handleMiaoSave = async () => {
+    if (!miaoForm.label.trim() || !miaoForm.code.trim()) {
+      showError('请填写标签和喵码')
+      return
+    }
+
+    const action = miaoEditingId ? '更新' : '添加'
+    showConfirm(
+      `确认${action}`,
+      `确定${action}此喵提醒吗？`,
+      async () => {
+        let newCodes
+        if (miaoEditingId) {
+          newCodes = miaoCodes.map(item => 
+            item.id === miaoEditingId 
+              ? { ...item, label: miaoForm.label, code: miaoForm.code }
+              : item
+          )
+        } else {
+          newCodes = [...miaoCodes, { 
+            id: Date.now(), 
+            label: miaoForm.label, 
+            code: miaoForm.code 
+          }]
+        }
+        
+        setMiaoCodes(newCodes)
+        setMiaoModalVisible(false)
+        
+        try {
+          await saveMiaoSettings({ 
+            enabled: miaoEnabled, 
+            codes: newCodes 
+          })
+          showSuccess(miaoEditingId ? '喵提醒已更新并保存' : '喵提醒已添加并保存')
+        } catch (error) {
+          showError('保存失败')
+        }
+      }
+    )
+  }
+
+  const handleMiaoDelete = async (id) => {
+    showConfirm(
+      '确认删除',
+      '确定删除此喵提醒吗？',
+      async () => {
+        const newCodes = miaoCodes.filter(item => item.id !== id)
+        setMiaoCodes(newCodes)
+        try {
+          await saveMiaoSettings({ 
+            enabled: miaoEnabled, 
+            codes: newCodes 
+          })
+          showSuccess('喵提醒已删除')
+        } catch (error) {
+          showError('删除失败')
+        }
+      },
+      'danger'
+    )
+  }
+
+  const handleMiaoTest = async (item) => {
+    if (!checkCooldown(miaoTestCooldown, item.id)) return
+    
+    if (!item.code) {
+      showError('请先填写喵码')
+      return
+    }
+    try {
+      const result = await testMiao({ 
+        code: item.code,
+        message: getPreviewMessage()
+      })
+      if (result.success) {
+        showSuccess(`测试通知已发送至 ${item.label || item.code}`)
+      } else {
+        showError('测试失败: ' + (result.error || '未知错误'))
+      }
+    } catch (error) {
+      showError('测试失败: 网络错误')
+    }
+  }
+
+  const handleSaveMiao = async () => {
+    setMiaoLoading(true)
+    try {
+      await saveMiaoSettings({ 
+        enabled: miaoEnabled, 
+        codes: miaoCodes 
+      })
+      showSuccess('喵提醒设置已保存')
+    } catch (error) {
+      showError('保存失败')
+    }
+    setMiaoLoading(false)
+  }
+
+  // 通知标题操作
   const handleSaveNotify = async () => {
     setNotifyLoading(true)
     try {
@@ -439,7 +594,6 @@ export default function SettingsPage({ showSuccess, showError }) {
               />
             </div>
             
-            {/* Chat ID 列表 */}
             <div style={{ marginTop: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <label className="form-label" style={{ margin: 0 }}>Chat ID 列表</label>
@@ -469,10 +623,10 @@ export default function SettingsPage({ showSuccess, showError }) {
                 <table className="table" style={{ margin: 0 }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '40px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
-                      <th style={{ width: '90px' }}>标签</th>
+                      <th style={{ width: '35px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
+                      <th style={{ width: '80px' }}>标签</th>
                       <th>Chat ID</th>
-                      <th style={{ width: '100px', textAlign: 'right', paddingRight: '12px' }}></th>
+                      <th style={{ width: '150px', textAlign: 'right', paddingRight: '12px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -482,18 +636,25 @@ export default function SettingsPage({ showSuccess, showError }) {
                         <td>{chat.label}</td>
                         <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
                         <td style={{ textAlign: 'right', paddingRight: '12px' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => handleTelegramTest(chat)}
+                              style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}
+                            >
+                              测试
+                            </button>
                             <button 
                               className="btn btn-secondary btn-sm"
                               onClick={() => openTelegramEdit(chat)}
-                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                              style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}
                             >
                               编辑
                             </button>
                             <button 
                               className="btn btn-danger btn-sm"
                               onClick={() => handleTelegramDelete(chat.id)}
-                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                              style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}
                             >
                               删除
                             </button>
@@ -536,87 +697,44 @@ export default function SettingsPage({ showSuccess, showError }) {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 服务器</label>
-                <input
-                  className="input"
-                  value={emailSmtp.smtp_host}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_host: e.target.value})}
-                  placeholder="smtp.qq.com"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
+                <input className="input" value={emailSmtp.smtp_host} onChange={(e) => setEmailSmtp({...emailSmtp, smtp_host: e.target.value})} placeholder="smtp.qq.com" disabled={!emailEnabled} style={{ fontSize: '13px' }} />
               </div>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 端口</label>
-                <input
-                  className="input"
-                  value={emailSmtp.smtp_port}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_port: e.target.value})}
-                  placeholder="465"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
+                <input className="input" value={emailSmtp.smtp_port} onChange={(e) => setEmailSmtp({...emailSmtp, smtp_port: e.target.value})} placeholder="465" disabled={!emailEnabled} style={{ fontSize: '13px' }} />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 用户名</label>
-                <input
-                  className="input"
-                  value={emailSmtp.smtp_user}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})}
-                  placeholder="your@email.com"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
+                <input className="input" value={emailSmtp.smtp_user} onChange={(e) => setEmailSmtp({...emailSmtp, smtp_user: e.target.value})} placeholder="your@email.com" disabled={!emailEnabled} style={{ fontSize: '13px' }} />
               </div>
               <div className="form-group">
                 <label className="form-label" style={{ fontSize: '12px' }}>SMTP 密码/授权码</label>
-                <input
-                  className="input"
-                  type="password"
-                  value={emailSmtp.smtp_password}
-                  onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})}
-                  placeholder="授权码"
-                  disabled={!emailEnabled}
-                  style={{ fontSize: '13px' }}
-                />
+                <input className="input" type="password" value={emailSmtp.smtp_password} onChange={(e) => setEmailSmtp({...emailSmtp, smtp_password: e.target.value})} placeholder="授权码" disabled={!emailEnabled} style={{ fontSize: '13px' }} />
               </div>
             </div>
             
-            {/* 收件人列表 */}
             <div style={{ marginTop: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <label className="form-label" style={{ margin: 0 }}>收件人列表</label>
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  onClick={openEmailAdd}
-                  disabled={!emailEnabled}
-                  style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-                >
+                <button className="btn btn-secondary btn-sm" onClick={openEmailAdd} disabled={!emailEnabled} style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
                   + 添加
                 </button>
               </div>
               
               {emailReceivers.length === 0 ? (
-                <div style={{ 
-                  padding: '16px', 
-                  textAlign: 'center', 
-                  color: 'var(--animal-text-color-disabled)', 
-                  fontSize: '13px',
-                  background: 'var(--animal-bg-color)',
-                  borderRadius: 'var(--animal-border-radius-sm)',
-                  border: '1px dashed var(--animal-border-color-light)',
-                }}>
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '13px', background: 'var(--animal-bg-color)', borderRadius: 'var(--animal-border-radius-sm)', border: '1px dashed var(--animal-border-color-light)' }}>
                   暂无收件人，点击上方按钮添加
                 </div>
               ) : (
                 <table className="table" style={{ margin: 0 }}>
                   <thead>
                     <tr>
-                      <th style={{ width: '40px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
-                      <th style={{ width: '90px' }}>标签</th>
+                      <th style={{ width: '35px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
+                      <th style={{ width: '80px' }}>标签</th>
                       <th>邮箱</th>
-                      <th style={{ width: '100px', textAlign: 'right', paddingRight: '12px' }}></th>
+                      <th style={{ width: '150px', textAlign: 'right', paddingRight: '12px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -626,21 +744,82 @@ export default function SettingsPage({ showSuccess, showError }) {
                         <td>{receiver.label}</td>
                         <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
                         <td style={{ textAlign: 'right', paddingRight: '12px' }}>
-                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                            <button 
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => openEmailEdit(receiver)}
-                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                            >
-                              编辑
-                            </button>
-                            <button 
-                              className="btn btn-danger btn-sm"
-                              onClick={() => handleEmailDelete(receiver.id)}
-                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                            >
-                              删除
-                            </button>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleEmailTest(receiver)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>测试</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => openEmailEdit(receiver)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>编辑</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleEmailDelete(receiver.id)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>删除</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 喵提醒设置 */}
+        <div className="card">
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+                喵提醒设置
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Switch 
+                  checked={miaoEnabled} 
+                  onChange={setMiaoEnabled}
+                  size="small"
+                />
+                {renderSwitchStatus(miaoEnabled)}
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={handleSaveMiao} disabled={miaoLoading}>
+              {miaoLoading ? '保存中...' : '保存设置'}
+            </button>
+          </div>
+          <div className="card-body">
+            <div className="form-group">
+              <label className="form-label" style={{ fontSize: '12px' }}>喵提醒说明</label>
+              <p style={{ fontSize: '13px', color: 'var(--animal-text-color-secondary)', margin: 0 }}>
+                喵提醒是一个免费的提醒服务，通过喵码触发通知。访问 <a href="https://miaotixing.com" target="_blank" style={{ color: 'var(--animal-primary-color)' }}>miaotixing.com</a> 获取喵码。
+              </p>
+            </div>
+            
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <label className="form-label" style={{ margin: 0 }}>喵码列表</label>
+                <button className="btn btn-secondary btn-sm" onClick={openMiaoAdd} disabled={!miaoEnabled} style={!miaoEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>
+                  + 添加
+                </button>
+              </div>
+              
+              {miaoCodes.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '13px', background: 'var(--animal-bg-color)', borderRadius: 'var(--animal-border-radius-sm)', border: '1px dashed var(--animal-border-color-light)' }}>
+                  暂无喵码，点击上方按钮添加
+                </div>
+              ) : (
+                <table className="table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '35px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
+                      <th style={{ width: '80px' }}>标签</th>
+                      <th>喵码</th>
+                      <th style={{ width: '150px', textAlign: 'right', paddingRight: '12px' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {miaoCodes.map((item, index) => (
+                      <tr key={item.id}>
+                        <td style={{ textAlign: 'left', paddingLeft: '12px', color: 'var(--animal-text-color-secondary)', fontSize: '12px' }}>{index + 1}</td>
+                        <td>{item.label}</td>
+                        <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{item.code}</td>
+                        <td style={{ textAlign: 'right', paddingRight: '12px' }}>
+                          <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end' }}>
+                            <button className="btn btn-secondary btn-sm" onClick={() => handleMiaoTest(item)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>测试</button>
+                            <button className="btn btn-secondary btn-sm" onClick={() => openMiaoEdit(item)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>编辑</button>
+                            <button className="btn btn-danger btn-sm" onClick={() => handleMiaoDelete(item.id)} style={{ padding: '4px 8px', fontSize: '11px', whiteSpace: 'nowrap' }}>删除</button>
                           </div>
                         </td>
                       </tr>
@@ -658,35 +837,17 @@ export default function SettingsPage({ showSuccess, showError }) {
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
               通知标题设置
             </h3>
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={handleSaveNotify} 
-              disabled={notifyLoading}
-            >
+            <button className="btn btn-primary btn-sm" onClick={handleSaveNotify} disabled={notifyLoading}>
               {notifyLoading ? '保存中...' : '保存设置'}
             </button>
           </div>
           <div className="card-body">
             <div className="form-group">
-              <input
-                className="input"
-                value={notifySettings.title}
-                onChange={(e) => setNotifySettings({...notifySettings, title: e.target.value})}
-                placeholder="请输入通知标题"
-              />
+              <input className="input" value={notifySettings.title} onChange={(e) => setNotifySettings({...notifySettings, title: e.target.value})} placeholder="请输入通知标题" />
             </div>
             <div className="form-group">
               <label className="form-label">预览效果</label>
-              <div style={{
-                background: 'var(--animal-bg-color)',
-                padding: '16px',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                fontSize: '14px',
-                whiteSpace: 'pre-line',
-                lineHeight: 1.8,
-                border: '2px solid var(--animal-border-color-light)',
-                color: 'var(--animal-text-color)',
-              }}>
+              <div style={{ background: 'var(--animal-bg-color)', padding: '16px', borderRadius: 'var(--animal-border-radius-sm)', fontSize: '14px', whiteSpace: 'pre-line', lineHeight: 1.8, border: '2px solid var(--animal-border-color-light)', color: 'var(--animal-text-color)' }}>
                 {notifyPreview}
               </div>
             </div>
@@ -702,62 +863,21 @@ export default function SettingsPage({ showSuccess, showError }) {
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
                 {telegramEditingId ? '编辑 Chat ID' : '添加 Chat ID'}
               </h3>
-              <button 
-                className="modal-close"
-                onClick={() => setTelegramModalVisible(false)}
-              >
-                ×
-              </button>
+              <button className="modal-close" onClick={() => setTelegramModalVisible(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">
-                  自定义标签
-                  <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>
-                    (最多4个中文或8个英文)
-                  </span>
-                </label>
-                <input
-                  className="input"
-                  value={telegramForm.label}
-                  onChange={(e) => {
-                    if (validateLabel(e.target.value)) {
-                      setTelegramForm({...telegramForm, label: e.target.value})
-                    }
-                  }}
-                  placeholder="例如：工作群"
-                />
+                <label className="form-label">自定义标签 <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>(最多4个中文或8个英文)</span></label>
+                <input className="input" value={telegramForm.label} onChange={(e) => { if (validateLabel(e.target.value)) { setTelegramForm({...telegramForm, label: e.target.value}) } }} placeholder="例如：工作群" />
               </div>
               <div className="form-group">
                 <label className="form-label">Chat ID</label>
-                <input
-                  className="input"
-                  value={telegramForm.chat_id}
-                  onChange={(e) => setTelegramForm({...telegramForm, chat_id: e.target.value})}
-                  placeholder="请输入Chat ID"
-                />
+                <input className="input" value={telegramForm.chat_id} onChange={(e) => setTelegramForm({...telegramForm, chat_id: e.target.value})} placeholder="请输入Chat ID" />
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
-                onClick={handleTelegramTest}
-                disabled={telegramTestLoading || !telegramBotToken || !telegramForm.chat_id}
-              >
-                {telegramTestLoading ? '发送中...' : '测试通知'}
-              </button>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setTelegramModalVisible(false)}
-              >
-                取消
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleTelegramSave}
-              >
-                保存
-              </button>
+              <button className="btn btn-secondary" onClick={() => setTelegramModalVisible(false)}>取消</button>
+              <button className="btn btn-primary" onClick={handleTelegramSave}>保存</button>
             </div>
           </div>
         </div>
@@ -771,68 +891,54 @@ export default function SettingsPage({ showSuccess, showError }) {
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
                 {emailEditingId ? '编辑收件人' : '添加收件人'}
               </h3>
-              <button 
-                className="modal-close"
-                onClick={() => setEmailModalVisible(false)}
-              >
-                ×
-              </button>
+              <button className="modal-close" onClick={() => setEmailModalVisible(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label className="form-label">
-                  自定义标签
-                  <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>
-                    (最多4个中文或8个英文)
-                  </span>
-                </label>
-                <input
-                  className="input"
-                  value={emailForm.label}
-                  onChange={(e) => {
-                    if (validateLabel(e.target.value)) {
-                      setEmailForm({...emailForm, label: e.target.value})
-                    }
-                  }}
-                  placeholder="例如：个人邮箱"
-                />
+                <label className="form-label">自定义标签 <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>(最多4个中文或8个英文)</span></label>
+                <input className="input" value={emailForm.label} onChange={(e) => { if (validateLabel(e.target.value)) { setEmailForm({...emailForm, label: e.target.value}) } }} placeholder="例如：个人邮箱" />
               </div>
               <div className="form-group">
                 <label className="form-label">收件人邮箱</label>
-                <input
-                  className="input"
-                  value={emailForm.email}
-                  onChange={(e) => setEmailForm({...emailForm, email: e.target.value})}
-                  placeholder="receiver@email.com"
-                />
+                <input className="input" value={emailForm.email} onChange={(e) => setEmailForm({...emailForm, email: e.target.value})} placeholder="receiver@email.com" />
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
-                onClick={handleEmailTest}
-                disabled={emailTestLoading || !emailSmtp.smtp_host || !emailForm.email}
-              >
-                {emailTestLoading ? '发送中...' : '测试通知'}
-              </button>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => setEmailModalVisible(false)}
-              >
-                取消
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={handleEmailSave}
-              >
-                保存
-              </button>
+              <button className="btn btn-secondary" onClick={() => setEmailModalVisible(false)}>取消</button>
+              <button className="btn btn-primary" onClick={handleEmailSave}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 喵提醒模态框 */}
+      {miaoModalVisible && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
+                {miaoEditingId ? '编辑喵提醒' : '添加喵提醒'}
+              </h3>
+              <button className="modal-close" onClick={() => setMiaoModalVisible(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label className="form-label">自定义标签 <span style={{ color: 'var(--animal-text-color-disabled)', marginLeft: '8px', fontWeight: 400, fontSize: '12px' }}>(最多4个中文或8个英文)</span></label>
+                <input className="input" value={miaoForm.label} onChange={(e) => { if (validateLabel(e.target.value)) { setMiaoForm({...miaoForm, label: e.target.value}) } }} placeholder="例如：手机提醒" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">喵码</label>
+                <input className="input" value={miaoForm.code} onChange={(e) => setMiaoForm({...miaoForm, code: e.target.value})} placeholder="请输入喵码" />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setMiaoModalVisible(false)}>取消</button>
+              <button className="btn btn-primary" onClick={handleMiaoSave}>保存</button>
             </div>
           </div>
         </div>
       )}
       
-      {/* 确认弹窗 */}
       <ConfirmModal
         visible={confirmModal.visible}
         title={confirmModal.title}

@@ -1,5 +1,28 @@
 // Cloudflare Pages Functions - Telegram Webhook 处理
 
+// 命令冷却时间记录（内存缓存，重启后重置）
+const commandCooldowns = {};
+const COOLDOWN_MS = 5 * 60 * 1000; // 5分钟
+
+function isOnCooldown(chatId, command) {
+  const key = `${chatId}_${command}`;
+  const now = Date.now();
+  const lastTime = commandCooldowns[key] || 0;
+  if (now - lastTime < COOLDOWN_MS) {
+    return true;
+  }
+  commandCooldowns[key] = now;
+  return false;
+}
+
+function getCooldownRemaining(chatId, command) {
+  const key = `${chatId}_${command}`;
+  const now = Date.now();
+  const lastTime = commandCooldowns[key] || 0;
+  const remaining = COOLDOWN_MS - (now - lastTime);
+  return Math.ceil(remaining / 1000);
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   
@@ -14,16 +37,17 @@ export async function onRequest(context) {
     }
     
     const chatId = update.message.chat.id;
-    const text = update.message.text;
+    const text = update.message.text.trim();
     
     // 获取Telegram设置
     let botToken = '';
     try {
       const { results: tokenResults } = await env.DB.prepare(
-        "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+        "SELECT value FROM notify_settings WHERE key='telegram_config'"
       ).all();
       if (tokenResults.length > 0 && tokenResults[0].value) {
-        botToken = tokenResults[0].value;
+        const config = JSON.parse(tokenResults[0].value);
+        botToken = config.bot_token || '';
       }
     } catch (e) {}
     
@@ -39,47 +63,53 @@ export async function onRequest(context) {
       });
     };
     
-    if (text === '/start' || text === '/help') {
-      await sendMessage('Cloudflare Light Subnotify\n\n可用命令:\n/start - 开始使用\n/help - 查看帮助\n/list - 查看订阅列表\n/today - 查看今日待通知\n/status - 查看系统状态');
-    } else if (text === '/list') {
-      const { results } = await env.DB.prepare('SELECT * FROM subscriptions WHERE is_active=1 ORDER BY next_notify_date ASC').all();
-      if (results.length === 0) {
-        await sendMessage('暂无订阅');
+    // 只处理 /start 和 /status 命令
+    if (text === '/start') {
+      if (isOnCooldown(chatId, 'start')) {
+        const remaining = getCooldownRemaining(chatId, 'start');
+        await sendMessage('⏳ 命令冷却中，请等待 ' + remaining + ' 秒后再试');
       } else {
-        const tzMap = { 'UTC': 'UTC+0', 'CST': 'UTC+8', 'ET': 'UTC-4' };
-        let msg = '订阅列表:\n\n';
-        results.forEach((s, i) => {
-          msg += (i + 1) + '. ' + s.name + '\n   ' + s.next_notify_date + ' ' + (s.cycle_hour || '09') + ':' + (s.cycle_minute || '00') + ' (' + (tzMap[s.timezone] || 'UTC+0') + ')\n\n';
-        });
-        await sendMessage(msg);
-      }
-    } else if (text === '/today') {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      const { results } = await env.DB.prepare(
-        'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1 ORDER BY next_notify_date ASC'
-      ).bind(today).all();
-      if (results.length === 0) {
-        await sendMessage('今日无待通知');
-      } else {
-        const tzMap = { 'UTC': 'UTC+0', 'CST': 'UTC+8', 'ET': 'UTC-4' };
-        let msg = '今日待通知:\n\n';
-        results.forEach((s, i) => {
-          msg += (i + 1) + '. ' + s.name + ' ' + (s.cycle_hour || '09') + ':' + (s.cycle_minute || '00') + ' (' + (tzMap[s.timezone] || 'UTC+0') + ')\n';
-        });
-        await sendMessage(msg);
+        await sendMessage(
+          '🤖 Cloudflare Light Subnotify\n\n' +
+          '欢迎使用订阅通知系统！\n\n' +
+          '可用命令：\n' +
+          '/start - 开始使用\n' +
+          '/status - 查看系统状态\n\n' +
+          '项目地址: https://github.com/SRSGMOE/cloudflare-light-subnotify'
+        );
       }
     } else if (text === '/status') {
-      const { results: subs } = await env.DB.prepare('SELECT COUNT(*) as count FROM subscriptions WHERE is_active=1').all();
-      const now = new Date();
-      await sendMessage(
-        '系统状态\n\n' +
-        '世界时钟: ' + formatDateTime(now, 0) + '\n' +
-        '北京时间: ' + formatDateTime(now, 8) + '\n' +
-        '美国东部: ' + formatDateTime(now, -4) + '\n' +
-        '活跃订阅: ' + subs[0].count + ' 个'
-      );
+      if (isOnCooldown(chatId, 'status')) {
+        const remaining = getCooldownRemaining(chatId, 'status');
+        await sendMessage('⏳ 命令冷却中，请等待 ' + remaining + ' 秒后再试');
+      } else {
+        try {
+          const { results: totalResults } = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM subscriptions'
+          ).all();
+          const { results: activeResults } = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM subscriptions WHERE is_active=1'
+          ).all();
+          const { results: pausedResults } = await env.DB.prepare(
+            'SELECT COUNT(*) as count FROM subscriptions WHERE is_active=0'
+          ).all();
+          
+          const now = new Date();
+          await sendMessage(
+            '⚙️ 系统状态\n\n' +
+            '📂 订阅总数: ' + (totalResults[0]?.count || 0) + ' 个\n' +
+            '🔥 活跃订阅: ' + (activeResults[0]?.count || 0) + ' 个\n' +
+            '🚫 停止订阅: ' + (pausedResults[0]?.count || 0) + ' 个\n\n' +
+            '🌏 世界时钟: ' + formatDateTime(now, 0) + '\n' +
+            '🇨🇳 北京时间: ' + formatDateTime(now, 8) + '\n' +
+            '🇺🇸 美国东部: ' + formatDateTime(now, -4)
+          );
+        } catch (e) {
+          await sendMessage('❌ 获取状态失败，请检查数据库配置');
+        }
+      }
     }
+    // 忽略其他命令
     
     return new Response('OK');
   } catch (error) {
