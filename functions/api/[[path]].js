@@ -174,9 +174,10 @@ export async function onRequest(context) {
         return json({ error: '所有必填字段都需要填写' }, 400);
       }
       const nextDate = calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true);
+      const notifyChannels = body.notify_channels || '[]';
       await env.DB.prepare(
-        'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date) VALUES (?,?,?,?,?,?,?,?)'
-      ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate).run();
+        'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date,notify_channels) VALUES (?,?,?,?,?,?,?,?,?)'
+      ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate, notifyChannels).run();
       return json({ success: true }, 201);
     }
     
@@ -199,6 +200,7 @@ export async function onRequest(context) {
         if (body.cycle_minute !== undefined) { sql += ',cycle_minute=?'; params.push(body.cycle_minute); }
         if (body.timezone !== undefined) { sql += ',timezone=?'; params.push(body.timezone); }
         if (body.is_active !== undefined) { sql += ',is_active=?'; params.push(body.is_active ? 1 : 0); }
+        if (body.notify_channels !== undefined) { sql += ',notify_channels=?'; params.push(body.notify_channels); }
         if (body.cycle_type) {
           sql += ',next_notify_date=?';
           params.push(calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true));
@@ -422,11 +424,21 @@ async function initDB(db) {
         cycle_minute TEXT DEFAULT '00',
         timezone TEXT DEFAULT 'UTC',
         next_notify_date TEXT NOT NULL,
+        notify_channels TEXT DEFAULT '[]',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         is_active INTEGER DEFAULT 1
       )`).run();
     }
+    // 确保 notify_channels 字段存在（兼容旧数据库）
+    try {
+      const { results: columns } = await db.prepare("PRAGMA table_info(subscriptions)").all();
+      const columnNames = columns.map(c => c.name);
+      if (!columnNames.includes('notify_channels')) {
+        await db.prepare("ALTER TABLE subscriptions ADD COLUMN notify_channels TEXT DEFAULT '[]'").run();
+      }
+    } catch (e) {}
+    
     await db.prepare(`CREATE TABLE IF NOT EXISTS notify_settings (
       id INTEGER PRIMARY KEY,
       key TEXT UNIQUE,

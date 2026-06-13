@@ -102,7 +102,7 @@ export default function SettingsPage({ showSuccess, showError }) {
     setTelegramModalVisible(true)
   }
 
-  const handleTelegramSave = () => {
+  const handleTelegramSave = async () => {
     if (!telegramForm.label.trim() || !telegramForm.chat_id.trim()) {
       showError('请填写标签和Chat ID')
       return
@@ -110,29 +110,55 @@ export default function SettingsPage({ showSuccess, showError }) {
 
     const action = telegramEditingId ? '更新' : '添加'
     if (window.confirm(`确定${action}此 Chat ID 吗？`)) {
+      let newChats
       if (telegramEditingId) {
-        setTelegramChats(telegramChats.map(chat => 
+        newChats = telegramChats.map(chat => 
           chat.id === telegramEditingId 
             ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
             : chat
-        ))
-        showSuccess('Chat ID 已更新')
+        )
       } else {
-        setTelegramChats([...telegramChats, { 
+        newChats = [...telegramChats, { 
           id: Date.now(), 
           label: telegramForm.label, 
           chat_id: telegramForm.chat_id 
-        }])
-        showSuccess('Chat ID 已添加')
+        }]
       }
+      
+      // 更新本地状态
+      setTelegramChats(newChats)
       setTelegramModalVisible(false)
+      
+      // 自动保存到数据库
+      try {
+        await saveTelegramSettings({ 
+          enabled: telegramEnabled, 
+          bot_token: telegramBotToken,
+          chats: newChats 
+        })
+        showSuccess(telegramEditingId ? 'Chat ID 已更新并保存' : 'Chat ID 已添加并保存')
+      } catch (error) {
+        showError('保存失败')
+      }
     }
   }
 
-  const handleTelegramDelete = (id) => {
+  const handleTelegramDelete = async (id) => {
     if (window.confirm('确定删除此 Chat ID？')) {
-      setTelegramChats(telegramChats.filter(chat => chat.id !== id))
-      showSuccess('Chat ID 已删除')
+      const newChats = telegramChats.filter(chat => chat.id !== id)
+      setTelegramChats(newChats)
+      
+      // 自动保存到数据库
+      try {
+        await saveTelegramSettings({ 
+          enabled: telegramEnabled, 
+          bot_token: telegramBotToken,
+          chats: newChats 
+        })
+        showSuccess('Chat ID 已删除')
+      } catch (error) {
+        showError('删除失败')
+      }
     }
   }
 
@@ -159,20 +185,18 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const handleSaveTelegram = async () => {
-    if (window.confirm('确定保存Telegram设置吗？')) {
-      setTelegramLoading(true)
-      try {
-        await saveTelegramSettings({ 
-          enabled: telegramEnabled, 
-          bot_token: telegramBotToken,
-          chats: telegramChats 
-        })
-        showSuccess('Telegram设置已保存')
-      } catch (error) {
-        showError('保存失败')
-      }
-      setTelegramLoading(false)
+    setTelegramLoading(true)
+    try {
+      await saveTelegramSettings({ 
+        enabled: telegramEnabled, 
+        bot_token: telegramBotToken,
+        chats: telegramChats 
+      })
+      showSuccess('Telegram设置已保存')
+    } catch (error) {
+      showError('保存失败')
     }
+    setTelegramLoading(false)
   }
 
   // ============ 邮件操作 ============
@@ -188,7 +212,7 @@ export default function SettingsPage({ showSuccess, showError }) {
     setEmailModalVisible(true)
   }
 
-  const handleEmailSave = () => {
+  const handleEmailSave = async () => {
     if (!emailForm.label.trim() || !emailForm.email.trim()) {
       showError('请填写标签和邮箱')
       return
@@ -196,29 +220,55 @@ export default function SettingsPage({ showSuccess, showError }) {
 
     const action = emailEditingId ? '更新' : '添加'
     if (window.confirm(`确定${action}此收件人吗？`)) {
+      let newReceivers
       if (emailEditingId) {
-        setEmailReceivers(emailReceivers.map(r => 
+        newReceivers = emailReceivers.map(r => 
           r.id === emailEditingId 
             ? { ...r, label: emailForm.label, email: emailForm.email }
             : r
-        ))
-        showSuccess('收件人已更新')
+        )
       } else {
-        setEmailReceivers([...emailReceivers, { 
+        newReceivers = [...emailReceivers, { 
           id: Date.now(), 
           label: emailForm.label, 
           email: emailForm.email 
-        }])
-        showSuccess('收件人已添加')
+        }]
       }
+      
+      // 更新本地状态
+      setEmailReceivers(newReceivers)
       setEmailModalVisible(false)
+      
+      // 自动保存到数据库
+      try {
+        await saveEmailSettings({ 
+          enabled: emailEnabled, 
+          smtp: emailSmtp,
+          receivers: newReceivers 
+        })
+        showSuccess(emailEditingId ? '收件人已更新并保存' : '收件人已添加并保存')
+      } catch (error) {
+        showError('保存失败')
+      }
     }
   }
 
-  const handleEmailDelete = (id) => {
+  const handleEmailDelete = async (id) => {
     if (window.confirm('确定删除此收件人？')) {
-      setEmailReceivers(emailReceivers.filter(r => r.id !== id))
-      showSuccess('收件人已删除')
+      const newReceivers = emailReceivers.filter(r => r.id !== id)
+      setEmailReceivers(newReceivers)
+      
+      // 自动保存到数据库
+      try {
+        await saveEmailSettings({ 
+          enabled: emailEnabled, 
+          smtp: emailSmtp,
+          receivers: newReceivers 
+        })
+        showSuccess('收件人已删除')
+      } catch (error) {
+        showError('删除失败')
+      }
     }
   }
 
@@ -245,20 +295,18 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const handleSaveEmail = async () => {
-    if (window.confirm('确定保存邮件设置吗？')) {
-      setEmailLoading(true)
-      try {
-        await saveEmailSettings({ 
-          enabled: emailEnabled, 
-          smtp: emailSmtp,
-          receivers: emailReceivers 
-        })
-        showSuccess('邮件设置已保存')
-      } catch (error) {
-        showError('保存失败')
-      }
-      setEmailLoading(false)
+    setEmailLoading(true)
+    try {
+      await saveEmailSettings({ 
+        enabled: emailEnabled, 
+        smtp: emailSmtp,
+        receivers: emailReceivers 
+      })
+      showSuccess('邮件设置已保存')
+    } catch (error) {
+      showError('保存失败')
     }
+    setEmailLoading(false)
   }
 
   // 通知标题操作

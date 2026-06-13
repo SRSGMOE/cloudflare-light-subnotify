@@ -49,6 +49,18 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
 
   useEffect(() => {
     fetchNotifyChannels()
+    
+    // 监听页面可见性变化，自动刷新通知途径
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchNotifyChannels()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   const fetchNotifyChannels = async () => {
@@ -239,13 +251,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
   }
 
   const handleCancelEdit = () => {
-    showConfirm(
-      '确认取消',
-      '确定要取消编辑吗？未保存的内容将丢失。',
-      () => {
-        setModalVisible(false)
-      }
-    )
+    setModalVisible(false)
   }
 
   const updateForm = (key, value) => {
