@@ -507,3 +507,26 @@ body {
 .nav-item.active .icon-wrapper {
   animation: bounce 0.6s ease-in-out infinite;
 }
+
+/* 响应式设计 */
+@media(max-width:1024px){
+    .sidebar{width:200px}
+    .main-content{margin-left:200px}
+    .settings-container{max-width:70% !important}
+}
+@media(max-width:768px){
+    .sidebar{width:60px}
+    .sidebar-header h1,.nav-item .label,.user-name,.user-role,.logout-btn span{display:none}
+    .sidebar-header{padding:15px}
+    .sidebar-nav{padding:10px 0}
+    .nav-item{padding:12px;justify-content:center}
+    .sidebar-footer{padding:15px}
+    .user-info{justify-content:center}
+    .user-name,.user-role{display:none}
+    .logout-btn span{display:none}
+    .main-content{margin-left:60px;padding:15px}
+    .settings-container{max-width:100% !important}
+    .time-cards,.data-cards{grid-template-columns:1fr}
+    .form-row{grid-template-columns:1fr}
+    th,td{padding:10px 12px;font-size:13px}
+}

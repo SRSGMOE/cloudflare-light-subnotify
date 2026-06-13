@@ -72,31 +72,46 @@ export default function SettingsPage({ showSuccess, showError }) {
         getEmailSettings()
       ])
       
-      // Telegram 设置
       setTelegramEnabled(telegram.enabled || false)
       setTelegramBotToken(telegram.bot_token || '')
       setTelegramChats(telegram.chats || [])
       
-      // 邮件设置
       setEmailEnabled(email.enabled || false)
       if (email.smtp) {
         setEmailSmtp(email.smtp)
       }
       setEmailReceivers(email.receivers || [])
       
-      // 通知标题
       setNotifySettings(notify)
     } catch (error) {
       console.error('Fetch settings failed:', error)
     }
   }
 
-  // 验证标签长度
   const validateLabel = (label) => {
     if (!label) return true
     const chineseCount = (label.match(/[\u4e00-\u9fa5]/g) || []).length
     const otherCount = label.length - chineseCount
     return chineseCount <= 4 && otherCount <= 8
+  }
+
+  // 显示确认弹窗
+  const showConfirm = (title, message, onConfirm, type = 'warning') => {
+    setConfirmModal({
+      visible: true,
+      title,
+      message,
+      onConfirm: () => {
+        setConfirmModal({ ...confirmModal, visible: false })
+        onConfirm()
+      },
+      type
+    })
+  }
+  
+  // 关闭确认弹窗
+  const hideConfirm = () => {
+    setConfirmModal({ ...confirmModal, visible: false })
   }
 
   // ============ Telegram 操作 ============
@@ -138,11 +153,9 @@ export default function SettingsPage({ showSuccess, showError }) {
           }]
         }
         
-        // 更新本地状态
         setTelegramChats(newChats)
         setTelegramModalVisible(false)
         
-        // 自动保存到数据库
         try {
           await saveTelegramSettings({ 
             enabled: telegramEnabled, 
@@ -165,7 +178,6 @@ export default function SettingsPage({ showSuccess, showError }) {
         const newChats = telegramChats.filter(chat => chat.id !== id)
         setTelegramChats(newChats)
         
-        // 自动保存到数据库
         try {
           await saveTelegramSettings({ 
             enabled: telegramEnabled, 
@@ -257,11 +269,9 @@ export default function SettingsPage({ showSuccess, showError }) {
           }]
         }
         
-        // 更新本地状态
         setEmailReceivers(newReceivers)
         setEmailModalVisible(false)
         
-        // 自动保存到数据库
         try {
           await saveEmailSettings({ 
             enabled: emailEnabled, 
@@ -284,7 +294,6 @@ export default function SettingsPage({ showSuccess, showError }) {
         const newReceivers = emailReceivers.filter(r => r.id !== id)
         setEmailReceivers(newReceivers)
         
-        // 自动保存到数据库
         try {
           await saveEmailSettings({ 
             enabled: emailEnabled, 
@@ -337,7 +346,6 @@ export default function SettingsPage({ showSuccess, showError }) {
     setEmailLoading(false)
   }
 
-  // 通知标题操作
   const handleSaveNotify = async () => {
     setNotifyLoading(true)
     try {
@@ -349,25 +357,6 @@ export default function SettingsPage({ showSuccess, showError }) {
     setNotifyLoading(false)
   }
 
-  // 显示确认弹窗
-  const showConfirm = (title, message, onConfirm, type = 'warning') => {
-    setConfirmModal({
-      visible: true,
-      title,
-      message,
-      onConfirm: () => {
-        setConfirmModal({ ...confirmModal, visible: false })
-        onConfirm()
-      },
-      type
-    })
-  }
-  
-  // 关闭确认弹窗
-  const hideConfirm = () => {
-    setConfirmModal({ ...confirmModal, visible: false })
-  }
-
   const notifyPreview = `📢 ${notifySettings.title || '订阅到期提醒'}
 
 📦 - 订阅名称：示例订阅
@@ -376,7 +365,6 @@ export default function SettingsPage({ showSuccess, showError }) {
 📮 - 通知周期：每周五 14:30
 📆 - 下次通知：2024-01-12 14:30`
 
-  // 渲染开关状态
   const renderSwitchStatus = (enabled) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
       <div style={{
@@ -409,9 +397,15 @@ export default function SettingsPage({ showSuccess, showError }) {
         系统设置
       </h2>
 
-      {/* Telegram Bot 设置 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
-        {/* 左卡片：Telegram Bot 设置 */}
+      <div style={{ 
+        maxWidth: '50%', 
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+      }} className="settings-container">
+
+        {/* Telegram Bot 设置 */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -449,7 +443,7 @@ export default function SettingsPage({ showSuccess, showError }) {
           </div>
         </div>
 
-        {/* 右卡片：Chat ID 设置 */}
+        {/* Telegram Chat ID 设置 */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
@@ -464,7 +458,7 @@ export default function SettingsPage({ showSuccess, showError }) {
               + 添加
             </button>
           </div>
-          <div className="card-body" style={{ padding: 0, maxHeight: '200px', overflowY: 'auto' }}>
+          <div className="card-body" style={{ padding: 0, maxHeight: '250px', overflowY: 'auto' }}>
             {telegramChats.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
                 暂无 Chat ID
@@ -473,17 +467,22 @@ export default function SettingsPage({ showSuccess, showError }) {
               <table className="table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '130px' }}>操作</th>
-                    <th style={{ width: '60px' }}>序号</th>
+                    <th style={{ width: '50px' }}></th>
+                    <th style={{ width: '60px', textAlign: 'center' }}>序号</th>
                     <th style={{ width: '100px' }}>标签</th>
                     <th>Chat ID</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {telegramChats.map((chat, index) => (
                     <tr key={chat.id}>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                      <td></td>
+                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
+                      <td>{chat.label}</td>
+                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button 
                             className="btn btn-secondary btn-sm"
                             onClick={() => openTelegramEdit(chat)}
@@ -500,9 +499,6 @@ export default function SettingsPage({ showSuccess, showError }) {
                           </button>
                         </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
-                      <td>{chat.label}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -510,11 +506,8 @@ export default function SettingsPage({ showSuccess, showError }) {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 邮件通知设置 */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '24px' }}>
-        {/* 左卡片：邮件通知设置 */}
+        {/* 邮件通知设置 */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -591,7 +584,7 @@ export default function SettingsPage({ showSuccess, showError }) {
           </div>
         </div>
 
-        {/* 右卡片：收件人设置 */}
+        {/* 邮件收件人设置 */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
@@ -606,7 +599,7 @@ export default function SettingsPage({ showSuccess, showError }) {
               + 添加
             </button>
           </div>
-          <div className="card-body" style={{ padding: 0, maxHeight: '200px', overflowY: 'auto' }}>
+          <div className="card-body" style={{ padding: 0, maxHeight: '250px', overflowY: 'auto' }}>
             {emailReceivers.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
                 暂无收件人
@@ -615,17 +608,22 @@ export default function SettingsPage({ showSuccess, showError }) {
               <table className="table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '130px' }}>操作</th>
-                    <th style={{ width: '60px' }}>序号</th>
+                    <th style={{ width: '50px' }}></th>
+                    <th style={{ width: '60px', textAlign: 'center' }}>序号</th>
                     <th style={{ width: '100px' }}>标签</th>
                     <th>邮箱</th>
+                    <th style={{ width: '120px', textAlign: 'right' }}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {emailReceivers.map((receiver, index) => (
                     <tr key={receiver.id}>
-                      <td>
-                        <div style={{ display: 'flex', gap: '6px' }}>
+                      <td></td>
+                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
+                      <td>{receiver.label}</td>
+                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                           <button 
                             className="btn btn-secondary btn-sm"
                             onClick={() => openEmailEdit(receiver)}
@@ -642,9 +640,6 @@ export default function SettingsPage({ showSuccess, showError }) {
                           </button>
                         </div>
                       </td>
-                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
-                      <td>{receiver.label}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -652,44 +647,44 @@ export default function SettingsPage({ showSuccess, showError }) {
             )}
           </div>
         </div>
-      </div>
 
-      {/* 通知标题设置 */}
-      <div className="card">
-        <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-            通知标题设置
-          </h3>
-          <button 
-            className="btn btn-primary btn-sm" 
-            onClick={handleSaveNotify} 
-            disabled={notifyLoading}
-          >
-            {notifyLoading ? '保存中...' : '保存设置'}
-          </button>
-        </div>
-        <div className="card-body">
-          <div className="form-group">
-            <input
-              className="input"
-              value={notifySettings.title}
-              onChange={(e) => setNotifySettings({...notifySettings, title: e.target.value})}
-              placeholder="请输入通知标题"
-            />
+        {/* 通知标题设置 */}
+        <div className="card">
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
+              通知标题设置
+            </h3>
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={handleSaveNotify} 
+              disabled={notifyLoading}
+            >
+              {notifyLoading ? '保存中...' : '保存设置'}
+            </button>
           </div>
-          <div className="form-group">
-            <label className="form-label">预览效果</label>
-            <div style={{
-              background: 'var(--animal-bg-color)',
-              padding: '16px',
-              borderRadius: 'var(--animal-border-radius-sm)',
-              fontSize: '14px',
-              whiteSpace: 'pre-line',
-              lineHeight: 1.8,
-              border: '2px solid var(--animal-border-color-light)',
-              color: 'var(--animal-text-color)',
-            }}>
-              {notifyPreview}
+          <div className="card-body">
+            <div className="form-group">
+              <input
+                className="input"
+                value={notifySettings.title}
+                onChange={(e) => setNotifySettings({...notifySettings, title: e.target.value})}
+                placeholder="请输入通知标题"
+              />
+            </div>
+            <div className="form-group">
+              <label className="form-label">预览效果</label>
+              <div style={{
+                background: 'var(--animal-bg-color)',
+                padding: '16px',
+                borderRadius: 'var(--animal-border-radius-sm)',
+                fontSize: '14px',
+                whiteSpace: 'pre-line',
+                lineHeight: 1.8,
+                border: '2px solid var(--animal-border-color-light)',
+                color: 'var(--animal-text-color)',
+              }}>
+                {notifyPreview}
+              </div>
             </div>
           </div>
         </div>
