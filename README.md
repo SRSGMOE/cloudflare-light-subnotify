@@ -2,8 +2,6 @@
 
 基于 Cloudflare Pages + D1 数据库的轻量级订阅管理系统，支持 Telegram Bot、邮件、喵提醒多种通知渠道。
 
-使用 React + animal-island-ui 构建，支持动物森林主题和默认主题切换。
-
 ## ✨ 功能特性
 
 ### 核心功能
@@ -15,98 +13,49 @@
 - 📱 **响应式设计**：支持桌面端、平板端、移动端
 
 ### 通知渠道
-- 🤖 **Telegram Bot**：支持命令交互、自动通知
+- 🤖 **TG Bot**：支持命令交互、自动通知
 - 📧 **邮件通知**：SMTP 配置，支持多个收件人
 - ⏰ **喵提醒**：通过喵码触发通知（miaotixing.com）
 
-### 主题系统
-- 🌿 **动物森林主题**：圆润 UI、立体按钮、bounce 动画
-- 💎 **默认主题**：简洁现代、蓝白配色、平面设计
-
-## 🛠️ 技术栈
-
-| 技术 | 说明 |
-|------|------|
-| **前端** | React 18 + animal-island-ui |
-| **后端** | Cloudflare Pages Functions |
-| **数据库** | Cloudflare D1 (SQLite) |
-| **构建工具** | Vite |
-| **部署平台** | Cloudflare Pages |
-
-## 📁 项目结构
-
-```
-cloudflare-light-subnotify/
-├── functions/
-│   ├── api/
-│   │   └── [[path]].js      # API 路由处理
-│   └── webhook/
-│       └── telegram.js       # Telegram Webhook 处理
-├── src/
-│   ├── api/
-│   │   └── index.js          # API 请求封装
-│   ├── components/
-│   │   ├── ConfirmModal.jsx  # 确认弹窗组件
-│   │   ├── ErrorBoundary.jsx # 错误边界组件
-│   │   └── Toast.jsx         # Toast 提示组件
-│   ├── context/
-│   │   └── ThemeContext.jsx  # 主题上下文
-│   ├── hooks/
-│   │   └── useToast.js       # Toast Hook
-│   ├── pages/
-│   │   ├── LoginPage.jsx     # 登录页面
-│   │   ├── DashboardPage.jsx # 数据表盘
-│   │   ├── SubscriptionPage.jsx # 订阅管理
-│   │   └── SettingsPage.jsx  # 系统设置
-│   ├── styles/
-│   │   ├── global.css        # 全局样式（动物森林主题）
-│   │   └── default-theme.css # 默认主题样式
-│   ├── App.jsx               # 主应用组件
-│   └── main.jsx              # 入口文件
-├── index.html                # HTML 入口
-├── package.json              # 项目配置
-├── vite.config.js            # Vite 配置
-├── wrangler.toml             # Cloudflare 配置
-└── README.md                 # 项目说明
-```
-
-## 🚀 快速开始
+## 🚀 本地部署
 
 ### 前置条件
 
 - Node.js 18+
-- Cloudflare 账号
 
-### 1. 克隆项目
+### 步骤
 
 ```bash
+# 1. 克隆项目
 git clone https://github.com/SRSGMOE/cloudflare-light-subnotify.git
 cd cloudflare-light-subnotify
-```
 
-### 2. 安装依赖
-
-```bash
+# 2. 安装依赖
 npm install
-```
 
-### 3. 本地开发
-
-```bash
+# 3. 本地开发
 npm run dev
+
+# 4. 构建项目
+npm run build
 ```
 
 访问 `http://localhost:5173` 查看效果。
 
-### 4. 构建项目
-
-```bash
-npm run build
-```
-
 ## ☁️ 部署到 Cloudflare Pages
 
-### 1. 创建 D1 数据库
+### 前置条件
+
+- Cloudflare 账号
+- GitHub 账号
+
+### 1. Fork 仓库
+
+1. 访问 [cloudflare-light-subnotify](https://github.com/SRSGMOE/cloudflare-light-subnotify)
+2. 点击右上角 **Fork** 按钮
+3. 将仓库 Fork 到你的 GitHub 账号
+
+### 2. 创建 D1 数据库
 
 1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)
 2. 进入 **Workers & Pages** → **D1**
@@ -114,22 +63,23 @@ npm run build
 4. 数据库名称：`subnotify-db`
 5. 记录数据库 ID
 
-### 2. 创建 Pages 项目
+### 3. 创建 Pages 项目
 
 1. 进入 **Workers & Pages** → **Create Application**
 2. 选择 **Pages** → **Connect to Git**
-3. 选择 GitHub 仓库
+3. 选择你 Fork 的 GitHub 仓库
 4. 配置构建设置：
 
 | 配置项 | 值 |
 |--------|-----|
 | **框架预设** | Vite |
 | **构建命令** | `npm run build` |
-| **输出目录** | `dist` |
+| **输出目录** | `/dist` |
+| **根目录** | `/` |
 
 5. 点击 **Save and Deploy**
 
-### 3. 配置环境变量
+### 4. 配置环境变量
 
 进入 Pages 项目 → **Settings** → **Environment variables**
 
@@ -139,7 +89,7 @@ npm run build
 | `ADMIN_PASSWORD` | `你的密码` | Secret | 管理员密码 |
 | `API_PREFIX` | `随机字符串` | Secret | API 路径前缀（可选） |
 
-### 4. 配置 D1 数据库绑定
+### 5. 配置 D1 数据库绑定
 
 1. 进入 Pages 项目 → **Settings** → **Functions**
 2. 找到 **D1 database bindings**
@@ -153,7 +103,7 @@ npm run build
 
 5. 点击 **Save**
 
-### 5. 重新部署
+### 6. 重新部署
 
 配置完成后，进入 **Deployments** 点击 **Deploy** 重新部署。
 
@@ -184,13 +134,6 @@ npm run build
 | 已配置 API_PREFIX | 必须带前缀：`/a1b2c3d4.../api/check-notifications` |
 | 无前缀直接访问 | 返回 404，不消耗请求次数 |
 
-### 定时任务配置
-
-如果配置了随机地址，定时任务的 URL 需要包含前缀：
-```
-https://你的域名.pages.dev/a1b2c3d4.../api/check-notifications
-```
-
 ## 📖 使用指南
 
 ### 登录系统
@@ -203,7 +146,6 @@ https://你的域名.pages.dev/a1b2c3d4.../api/check-notifications
 
 - 实时显示世界时钟、北京时间、美国东部时间
 - 显示订阅统计数据：总订阅、活跃订阅、已停止订阅
-- 提示用户同步设备时间
 
 ### 订阅管理
 
@@ -252,8 +194,6 @@ https://你的域名.pages.dev/a1b2c3d4.../api/check-notifications
 | `/start` | 开始使用，显示帮助信息 | 5 分钟 |
 | `/status` | 查看系统状态 | 5 分钟 |
 
-
-
 ## 📋 通知格式示例
 
 ```
@@ -285,7 +225,7 @@ https://你的域名.pages.dev/a1b2c3d4.../api/check-notifications
 | `/api/subscriptions/:id` | PUT | 更新订阅 | ✅ |
 | `/api/subscriptions/:id` | DELETE | 删除订阅 | ✅ |
 
-### Telegram 设置
+### TG Bot 设置
 
 | 接口 | 方法 | 说明 | 认证 |
 |------|------|------|------|
@@ -401,6 +341,84 @@ crons = ["*/10 * * * *"]
 3. URL：`https://你的域名.pages.dev/api/check-notifications`
 4. 间隔：10 分钟
 
+### 方案3：使用青龙面板
+
+[青龙面板](https://github.com/whyour/qinglong) 是一个定时任务管理面板，支持多种脚本运行。
+
+#### 安装青龙面板
+
+```bash
+docker run -dit \
+  --name qinglong \
+  --restart always \
+  -p 5700:5700 \
+  -v /opt/qinglong:/ql/data \
+  whyour/qinglong:latest
+```
+
+访问 `http://你的IP:5700` 进入面板。
+
+#### 创建定时任务
+
+1. 进入青龙面板 → **定时任务** → **新建任务**
+2. 配置任务：
+
+| 配置项 | 值 |
+|--------|-----|
+| **名称** | 订阅通知检查 |
+| **命令** | 见下方脚本 |
+| **定时规则** | `0 */10 * * *`（每10分钟） |
+
+3. 点击 **确定**
+
+#### 通知检查脚本
+
+创建文件 `/ql/data/scripts/check_notifications.sh`：
+
+```bash
+#!/bin/bash
+
+# 配置你的 API 地址
+# 如果配置了 API_PREFIX，需要包含前缀
+# 例如: https://xxx.pages.dev/abc123/api/check-notifications
+API_URL="https://你的域名.pages.dev/api/check-notifications"
+
+# 发送请求
+response=$(curl -s -X POST "$API_URL" \
+  -H "Content-Type: application/json" \
+  -d '{}')
+
+# 输出结果
+echo "通知检查结果: $response"
+```
+
+或者使用 Python 脚本 `check_notifications.py`：
+
+```python
+#!/usr/bin/env python3
+import requests
+import json
+
+# 配置你的 API 地址
+# 如果配置了 API_PREFIX，需要包含前缀
+API_URL = "https://你的域名.pages.dev/api/check-notifications"
+
+try:
+    response = requests.post(API_URL, json={}, timeout=30)
+    result = response.json()
+    print(f"通知检查结果: {result}")
+except Exception as e:
+    print(f"请求失败: {e}")
+```
+
+#### 使用青龙面板的优势
+
+- ✅ 免费开源
+- ✅ 可视化管理
+- ✅ 支持多种脚本（Shell、Python、Node.js 等）
+- ✅ 支持任务日志查看
+- ✅ 支持任务失败通知
+
 ## 🔒 安全机制
 
 ### 管理员认证
@@ -449,6 +467,18 @@ MIT License
 - [animal-island-ui](https://github.com/guokaigdg/animal-island-ui)
 - [Telegram Bot API](https://core.telegram.org/bots/api)
 - [喵提醒](https://miaotixing.com)
+- [青龙面板](https://github.com/whyour/qinglong)
+- [UptimeRobot](https://uptimerobot.com)
+
+## 🛠️ 技术栈
+
+| 技术 | 说明 |
+|------|------|
+| **前端** | React 18 + animal-island-ui |
+| **后端** | Cloudflare Pages Functions |
+| **数据库** | Cloudflare D1 (SQLite) |
+| **构建工具** | Vite |
+| **部署平台** | Cloudflare Pages |
 
 ## 💬 支持
 
