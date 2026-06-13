@@ -88,7 +88,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
               key: `tg_${chat.id}`,
               type: 'telegram',
               icon: '🤖',
-              label: chat.label ? `Telegram Bot（${chat.label}）` : `Telegram Bot #${index + 1}`,
+              label: chat.label ? `TG Bot（${chat.label}）` : `TG Bot #${index + 1}`,
             })
           }
         })

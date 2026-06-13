@@ -512,11 +512,11 @@ export default function SettingsPage({ showSuccess, showError }) {
 
   const notifyPreview = `📢 ${notifySettings.title || '订阅到期提醒'}
 
-📦 - 订阅名称：示例订阅
-🔖 - 订阅内容：这是订阅内容示例
-🌏 - 当前时区：北京时间 UTC+8
-📮 - 通知周期：每周五 14:30
-📆 - 下次通知：2024-01-12 14:30`
+📦 订阅名称：示例订阅
+🔖 订阅内容：这是订阅内容示例
+🌏 当前时区：北京时间 UTC+8
+📮 通知周期：每周五 14:30
+📆 下次通知：2024-01-12 14:30`
 
   const renderSwitchStatus = (enabled) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -558,12 +558,12 @@ export default function SettingsPage({ showSuccess, showError }) {
         gap: '24px',
       }} className="settings-container">
 
-        {/* Telegram Bot 设置（含 Chat ID） */}
+        {/* TG Bot 设置（含 Chat ID） */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-                Telegram Bot 设置
+                TG Bot 设置
               </h3>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Switch 
@@ -780,14 +780,7 @@ export default function SettingsPage({ showSuccess, showError }) {
             </button>
           </div>
           <div className="card-body">
-            <div className="form-group">
-              <label className="form-label" style={{ fontSize: '12px' }}>喵提醒说明</label>
-              <p style={{ fontSize: '13px', color: 'var(--animal-text-color-secondary)', margin: 0 }}>
-                喵提醒是一个免费的提醒服务，通过喵码触发通知。访问 <a href="https://miaotixing.com" target="_blank" style={{ color: 'var(--animal-primary-color)' }}>miaotixing.com</a> 获取喵码。
-              </p>
-            </div>
-            
-            <div style={{ marginTop: '16px' }}>
+            <div style={{ marginTop: '0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
                 <label className="form-label" style={{ margin: 0 }}>喵码列表</label>
                 <button className="btn btn-secondary btn-sm" onClick={openMiaoAdd} disabled={!miaoEnabled} style={!miaoEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}>

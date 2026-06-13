@@ -135,8 +135,9 @@ npm run build
 
 | 变量名 | 值 | 类型 | 说明 |
 |--------|-----|------|------|
-| `ADMIN_USERNAME` | `admin` | Text | 管理员用户名 |
+| `ADMIN_USERNAME` | `admin` | Secret | 管理员用户名 |
 | `ADMIN_PASSWORD` | `你的密码` | Secret | 管理员密码 |
+| `API_PREFIX` | `随机字符串` | Secret | API 路径前缀（可选） |
 
 ### 4. 配置 D1 数据库绑定
 
@@ -155,6 +156,40 @@ npm run build
 ### 5. 重新部署
 
 配置完成后，进入 **Deployments** 点击 **Deploy** 重新部署。
+
+## 🔐 随机地址配置
+
+为防止 API 被滥用，支持通过环境变量设置随机路径前缀。
+
+### 配置方法
+
+1. 生成随机字符串：
+   ```bash
+   openssl rand -hex 16
+   # 输出示例: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+   ```
+
+2. 在 Cloudflare Dashboard 设置环境变量：
+   - 变量名：`API_PREFIX`
+   - 值：`a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6`
+   - 类型：`Secret`
+
+3. 重新部署项目
+
+### 效果说明
+
+| 场景 | 结果 |
+|------|------|
+| 未配置 API_PREFIX | API 正常访问：`/api/check-notifications` |
+| 已配置 API_PREFIX | 必须带前缀：`/a1b2c3d4.../api/check-notifications` |
+| 无前缀直接访问 | 返回 404，不消耗请求次数 |
+
+### 定时任务配置
+
+如果配置了随机地址，定时任务的 URL 需要包含前缀：
+```
+https://你的域名.pages.dev/a1b2c3d4.../api/check-notifications
+```
 
 ## 📖 使用指南
 
@@ -184,7 +219,7 @@ npm run build
 
 ### 系统设置
 
-#### Telegram Bot 设置
+#### TG Bot 设置
 
 1. 打开 Telegram 搜索 `@BotFather`
 2. 发送 `/newbot` 创建 Bot
@@ -217,44 +252,18 @@ npm run build
 | `/start` | 开始使用，显示帮助信息 | 5 分钟 |
 | `/status` | 查看系统状态 | 5 分钟 |
 
-### /status 输出示例
 
-```
-⚙️ 系统状态
-
-📂 订阅总数: 5 个
-🔥 活跃订阅: 3 个
-🚫 停止订阅: 2 个
-
-🌏 世界时钟: 2026-06-13 08:46:38
-🇨🇳 北京时间: 2026-06-13 16:46:38
-🇺🇸 美国东部: 2026-06-13 04:46:38
-```
-
-### /start 输出示例
-
-```
-🤖 Cloudflare Light Subnotify
-
-欢迎使用订阅通知系统！
-
-可用命令：
-/start - 开始使用
-/status - 查看系统状态
-
-项目地址: https://github.com/SRSGMOE/cloudflare-light-subnotify
-```
 
 ## 📋 通知格式示例
 
 ```
 📢 订阅到期提醒
 
-📦 - 订阅名称：示例订阅
-🔖 - 订阅内容：这是订阅内容示例
-🌏 - 当前时区：北京时间 UTC+8
-📮 - 通知周期：每周五 14:30
-📆 - 下次通知：2024-01-12 14:30
+📦 订阅名称：示例订阅
+🔖 订阅内容：这是订阅内容示例
+🌏 当前时区：北京时间 UTC+8
+📮 通知周期：每周五 14:30
+📆 下次通知：2024-01-12 14:30
 ```
 
 ## 📊 API 接口
@@ -391,25 +400,6 @@ crons = ["*/10 * * * *"]
 2. 创建 HTTP 监控器
 3. URL：`https://你的域名.pages.dev/api/check-notifications`
 4. 间隔：10 分钟
-
-## 🎨 主题说明
-
-### 动物森林主题
-
-- 使用 animal-island-ui 组件库
-- 圆润的 UI 风格（border-radius: 20px）
-- 立体按钮效果（box-shadow: 0 5px）
-- bounce 弹跳动画
-- 温暖自然的配色
-- 木质纹理效果
-
-### 默认主题
-
-- 标准 UI 风格
-- 平面按钮设计
-- 蓝白配色（#1890FF）
-- 简洁现代
-- 圆角矩形（border-radius: 8px）
 
 ## 🔒 安全机制
 
