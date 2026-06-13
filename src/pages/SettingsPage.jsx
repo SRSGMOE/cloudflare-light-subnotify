@@ -473,9 +473,9 @@ export default function SettingsPage({ showSuccess, showError }) {
               <table className="table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '100px' }}>操作</th>
-                    <th style={{ width: '50px' }}>序号</th>
-                    <th>标签</th>
+                    <th style={{ width: '130px' }}>操作</th>
+                    <th style={{ width: '60px' }}>序号</th>
+                    <th style={{ width: '100px' }}>标签</th>
                     <th>Chat ID</th>
                   </tr>
                 </thead>
@@ -483,24 +483,24 @@ export default function SettingsPage({ showSuccess, showError }) {
                   {telegramChats.map((chat, index) => (
                     <tr key={chat.id}>
                       <td>
-                        <div style={{ display: 'flex', gap: '4px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button 
                             className="btn btn-secondary btn-sm"
                             onClick={() => openTelegramEdit(chat)}
-                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
                           >
                             编辑
                           </button>
                           <button 
                             className="btn btn-danger btn-sm"
                             onClick={() => handleTelegramDelete(chat.id)}
-                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
                           >
                             删除
                           </button>
                         </div>
                       </td>
-                      <td>{index + 1}</td>
+                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
                       <td>{chat.label}</td>
                       <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
                     </tr>
@@ -615,9 +615,9 @@ export default function SettingsPage({ showSuccess, showError }) {
               <table className="table" style={{ margin: 0 }}>
                 <thead>
                   <tr>
-                    <th style={{ width: '100px' }}>操作</th>
-                    <th style={{ width: '50px' }}>序号</th>
-                    <th>标签</th>
+                    <th style={{ width: '130px' }}>操作</th>
+                    <th style={{ width: '60px' }}>序号</th>
+                    <th style={{ width: '100px' }}>标签</th>
                     <th>邮箱</th>
                   </tr>
                 </thead>
@@ -625,24 +625,24 @@ export default function SettingsPage({ showSuccess, showError }) {
                   {emailReceivers.map((receiver, index) => (
                     <tr key={receiver.id}>
                       <td>
-                        <div style={{ display: 'flex', gap: '4px' }}>
+                        <div style={{ display: 'flex', gap: '6px' }}>
                           <button 
                             className="btn btn-secondary btn-sm"
                             onClick={() => openEmailEdit(receiver)}
-                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
                           >
                             编辑
                           </button>
                           <button 
                             className="btn btn-danger btn-sm"
                             onClick={() => handleEmailDelete(receiver.id)}
-                            style={{ padding: '2px 6px', fontSize: '11px' }}
+                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
                           >
                             删除
                           </button>
                         </div>
                       </td>
-                      <td>{index + 1}</td>
+                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
                       <td>{receiver.label}</td>
                       <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
                     </tr>

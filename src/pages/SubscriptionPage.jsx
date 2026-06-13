@@ -85,7 +85,8 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
             channels.push({
               key: `tg_${chat.id}`,
               type: 'telegram',
-              label: chat.label ? `TG BOT（${chat.label}）` : `TG BOT #${index + 1}`,
+              icon: '🤖',
+              label: chat.label ? `Telegram Bot（${chat.label}）` : `Telegram Bot #${index + 1}`,
               chat_id: chat.chat_id,
             })
           }
@@ -99,6 +100,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
             channels.push({
               key: `email_${receiver.id}`,
               type: 'email',
+              icon: '📧',
               label: receiver.label ? `邮件（${receiver.label}）` : `邮件 #${index + 1}`,
               email: receiver.email,
             })
@@ -273,7 +275,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     })
   }
 
-  // 获取订阅的通知途径显示文本
+  // 获取订阅的通知途径显示文本（用于其他地方）
   const getNotifyChannelsText = (record) => {
     try {
       const channels = record.notify_channels ? JSON.parse(record.notify_channels) : []
@@ -282,6 +284,28 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         const channel = notifyChannels.find(c => c.key === key)
         return channel ? channel.label : key
       }).join('、')
+    } catch (e) {
+      return '未设置'
+    }
+  }
+
+  // 获取订阅的通知途径显示（带图标，只显示第一个）
+  const getNotifyChannelDisplay = (record) => {
+    try {
+      const channels = record.notify_channels ? JSON.parse(record.notify_channels) : []
+      if (channels.length === 0) return '未设置'
+      
+      const firstChannel = notifyChannels.find(c => c.key === channels[0])
+      if (!firstChannel) return '未设置'
+      
+      const icon = firstChannel.icon || '📢'
+      const label = firstChannel.label
+      
+      if (channels.length === 1) {
+        return `${icon} ${label}`
+      } else {
+        return `${icon} ${label} ...`
+      }
     } catch (e) {
       return '未设置'
     }
@@ -405,30 +429,6 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   </span>
                 </div>
 
-                {record.content && (
-                  <div style={{ marginBottom: '8px' }}>
-                    <span style={{ 
-                      fontSize: '12px', 
-                      color: 'var(--animal-text-color-secondary)',
-                      marginRight: '8px',
-                    }}>
-                      内容：
-                    </span>
-                    <span style={{ 
-                      fontSize: '14px', 
-                      color: 'var(--animal-text-color-secondary)',
-                      display: 'inline-block',
-                      maxWidth: 'calc(100% - 40px)',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      verticalAlign: 'middle',
-                    }}>
-                      {record.content}
-                    </span>
-                  </div>
-                )}
-
                 <div style={{ marginBottom: '8px' }}>
                   <span style={{ 
                     fontSize: '12px', 
@@ -458,7 +458,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                     color: 'var(--animal-primary-color)',
                     fontWeight: 500,
                   }}>
-                    {getNotifyChannelsText(record)}
+                    {getNotifyChannelDisplay(record)}
                   </span>
                 </div>
               </div>
@@ -498,8 +498,13 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   {record.is_active ? '停止' : '恢复'}
                 </button>
                 <button 
-                  className="btn btn-danger btn-sm" 
+                  className="btn btn-sm" 
                   onClick={() => handleDelete(record)}
+                  style={{
+                    background: 'var(--animal-bg-color)',
+                    color: 'var(--animal-error-color)',
+                    borderColor: 'var(--animal-error-color)',
+                  }}
                 >
                   {currentTheme === 'animal-forest' ? (
                     <Icon item={463} size={14} />
@@ -700,7 +705,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                             color: 'var(--animal-text-color)',
                             fontWeight: form.notify_channels.includes(channel.key) ? 600 : 400,
                           }}>
-                            {channel.type === 'telegram' ? '📱' : '📧'} {channel.label}
+                            {channel.icon || '📢'} {channel.label}
                           </span>
                         </label>
                       ))}
