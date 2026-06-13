@@ -108,24 +108,25 @@ export default function SettingsPage({ showSuccess, showError }) {
       return
     }
 
-    if (telegramEditingId) {
-      // 编辑
-      setTelegramChats(telegramChats.map(chat => 
-        chat.id === telegramEditingId 
-          ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
-          : chat
-      ))
-      showSuccess('Chat ID 已更新')
-    } else {
-      // 添加
-      setTelegramChats([...telegramChats, { 
-        id: Date.now(), 
-        label: telegramForm.label, 
-        chat_id: telegramForm.chat_id 
-      }])
-      showSuccess('Chat ID 已添加')
+    const action = telegramEditingId ? '更新' : '添加'
+    if (window.confirm(`确定${action}此 Chat ID 吗？`)) {
+      if (telegramEditingId) {
+        setTelegramChats(telegramChats.map(chat => 
+          chat.id === telegramEditingId 
+            ? { ...chat, label: telegramForm.label, chat_id: telegramForm.chat_id }
+            : chat
+        ))
+        showSuccess('Chat ID 已更新')
+      } else {
+        setTelegramChats([...telegramChats, { 
+          id: Date.now(), 
+          label: telegramForm.label, 
+          chat_id: telegramForm.chat_id 
+        }])
+        showSuccess('Chat ID 已添加')
+      }
+      setTelegramModalVisible(false)
     }
-    setTelegramModalVisible(false)
   }
 
   const handleTelegramDelete = (id) => {
@@ -158,18 +159,20 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const handleSaveTelegram = async () => {
-    setTelegramLoading(true)
-    try {
-      await saveTelegramSettings({ 
-        enabled: telegramEnabled, 
-        bot_token: telegramBotToken,
-        chats: telegramChats 
-      })
-      showSuccess('Telegram设置已保存')
-    } catch (error) {
-      showError('保存失败')
+    if (window.confirm('确定保存Telegram设置吗？')) {
+      setTelegramLoading(true)
+      try {
+        await saveTelegramSettings({ 
+          enabled: telegramEnabled, 
+          bot_token: telegramBotToken,
+          chats: telegramChats 
+        })
+        showSuccess('Telegram设置已保存')
+      } catch (error) {
+        showError('保存失败')
+      }
+      setTelegramLoading(false)
     }
-    setTelegramLoading(false)
   }
 
   // ============ 邮件操作 ============
@@ -191,22 +194,25 @@ export default function SettingsPage({ showSuccess, showError }) {
       return
     }
 
-    if (emailEditingId) {
-      setEmailReceivers(emailReceivers.map(r => 
-        r.id === emailEditingId 
-          ? { ...r, label: emailForm.label, email: emailForm.email }
-          : r
-      ))
-      showSuccess('收件人已更新')
-    } else {
-      setEmailReceivers([...emailReceivers, { 
-        id: Date.now(), 
-        label: emailForm.label, 
-        email: emailForm.email 
-      }])
-      showSuccess('收件人已添加')
+    const action = emailEditingId ? '更新' : '添加'
+    if (window.confirm(`确定${action}此收件人吗？`)) {
+      if (emailEditingId) {
+        setEmailReceivers(emailReceivers.map(r => 
+          r.id === emailEditingId 
+            ? { ...r, label: emailForm.label, email: emailForm.email }
+            : r
+        ))
+        showSuccess('收件人已更新')
+      } else {
+        setEmailReceivers([...emailReceivers, { 
+          id: Date.now(), 
+          label: emailForm.label, 
+          email: emailForm.email 
+        }])
+        showSuccess('收件人已添加')
+      }
+      setEmailModalVisible(false)
     }
-    setEmailModalVisible(false)
   }
 
   const handleEmailDelete = (id) => {
@@ -239,18 +245,20 @@ export default function SettingsPage({ showSuccess, showError }) {
   }
 
   const handleSaveEmail = async () => {
-    setEmailLoading(true)
-    try {
-      await saveEmailSettings({ 
-        enabled: emailEnabled, 
-        smtp: emailSmtp,
-        receivers: emailReceivers 
-      })
-      showSuccess('邮件设置已保存')
-    } catch (error) {
-      showError('保存失败')
+    if (window.confirm('确定保存邮件设置吗？')) {
+      setEmailLoading(true)
+      try {
+        await saveEmailSettings({ 
+          enabled: emailEnabled, 
+          smtp: emailSmtp,
+          receivers: emailReceivers 
+        })
+        showSuccess('邮件设置已保存')
+      } catch (error) {
+        showError('保存失败')
+      }
+      setEmailLoading(false)
     }
-    setEmailLoading(false)
   }
 
   // 通知标题操作
@@ -639,16 +647,20 @@ export default function SettingsPage({ showSuccess, showError }) {
             <div className="modal-footer">
               <button 
                 className="btn btn-secondary" 
-                onClick={() => setTelegramModalVisible(false)}
-              >
-                取消
-              </button>
-              <button 
-                className="btn btn-secondary" 
                 onClick={handleTelegramTest}
                 disabled={telegramTestLoading || !telegramBotToken || !telegramForm.chat_id}
               >
                 {telegramTestLoading ? '发送中...' : '测试通知'}
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  if (window.confirm('确定取消吗？')) {
+                    setTelegramModalVisible(false)
+                  }
+                }}
+              >
+                取消
               </button>
               <button 
                 className="btn btn-primary" 
@@ -708,16 +720,20 @@ export default function SettingsPage({ showSuccess, showError }) {
             <div className="modal-footer">
               <button 
                 className="btn btn-secondary" 
-                onClick={() => setEmailModalVisible(false)}
-              >
-                取消
-              </button>
-              <button 
-                className="btn btn-secondary" 
                 onClick={handleEmailTest}
                 disabled={emailTestLoading || !emailSmtp.smtp_host || !emailForm.email}
               >
                 {emailTestLoading ? '发送中...' : '测试通知'}
+              </button>
+              <button 
+                className="btn btn-secondary" 
+                onClick={() => {
+                  if (window.confirm('确定取消吗？')) {
+                    setEmailModalVisible(false)
+                  }
+                }}
+              >
+                取消
               </button>
               <button 
                 className="btn btn-primary" 
