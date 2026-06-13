@@ -95,7 +95,6 @@ export default function SettingsPage({ showSuccess, showError }) {
     return chineseCount <= 4 && otherCount <= 8
   }
 
-  // 显示确认弹窗
   const showConfirm = (title, message, onConfirm, type = 'warning') => {
     setConfirmModal({
       visible: true,
@@ -109,7 +108,6 @@ export default function SettingsPage({ showSuccess, showError }) {
     })
   }
   
-  // 关闭确认弹窗
   const hideConfirm = () => {
     setConfirmModal({ ...confirmModal, visible: false })
   }
@@ -398,14 +396,14 @@ export default function SettingsPage({ showSuccess, showError }) {
       </h2>
 
       <div style={{ 
-        maxWidth: '50%', 
+        maxWidth: '40%', 
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
         gap: '24px',
       }} className="settings-container">
 
-        {/* Telegram Bot 设置 */}
+        {/* Telegram Bot 设置（含 Chat ID） */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -440,74 +438,77 @@ export default function SettingsPage({ showSuccess, showError }) {
                 disabled={!telegramEnabled}
               />
             </div>
-          </div>
-        </div>
-
-        {/* Telegram Chat ID 设置 */}
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-              Chat ID 设置
-            </h3>
-            <button 
-              className="btn btn-secondary btn-sm" 
-              onClick={openTelegramAdd}
-              disabled={!telegramEnabled}
-              style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              + 添加
-            </button>
-          </div>
-          <div className="card-body" style={{ padding: 0, maxHeight: '250px', overflowY: 'auto' }}>
-            {telegramChats.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
-                暂无 Chat ID
+            
+            {/* Chat ID 列表 */}
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <label className="form-label" style={{ margin: 0 }}>Chat ID 列表</label>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={openTelegramAdd}
+                  disabled={!telegramEnabled}
+                  style={!telegramEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  + 添加
+                </button>
               </div>
-            ) : (
-              <table className="table" style={{ margin: 0 }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px' }}></th>
-                    <th style={{ width: '60px', textAlign: 'center' }}>序号</th>
-                    <th style={{ width: '100px' }}>标签</th>
-                    <th>Chat ID</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {telegramChats.map((chat, index) => (
-                    <tr key={chat.id}>
-                      <td></td>
-                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
-                      <td>{chat.label}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button 
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => openTelegramEdit(chat)}
-                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                          >
-                            编辑
-                          </button>
-                          <button 
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleTelegramDelete(chat.id)}
-                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </td>
+              
+              {telegramChats.length === 0 ? (
+                <div style={{ 
+                  padding: '16px', 
+                  textAlign: 'center', 
+                  color: 'var(--animal-text-color-disabled)', 
+                  fontSize: '13px',
+                  background: 'var(--animal-bg-color)',
+                  borderRadius: 'var(--animal-border-radius-sm)',
+                  border: '1px dashed var(--animal-border-color-light)',
+                }}>
+                  暂无 Chat ID，点击上方按钮添加
+                </div>
+              ) : (
+                <table className="table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
+                      <th style={{ width: '90px' }}>标签</th>
+                      <th>Chat ID</th>
+                      <th style={{ width: '100px', textAlign: 'right', paddingRight: '12px' }}></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {telegramChats.map((chat, index) => (
+                      <tr key={chat.id}>
+                        <td style={{ textAlign: 'left', paddingLeft: '12px', color: 'var(--animal-text-color-secondary)', fontSize: '12px' }}>{index + 1}</td>
+                        <td>{chat.label}</td>
+                        <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{chat.chat_id}</td>
+                        <td style={{ textAlign: 'right', paddingRight: '12px' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => openTelegramEdit(chat)}
+                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                            >
+                              编辑
+                            </button>
+                            <button 
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleTelegramDelete(chat.id)}
+                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 邮件通知设置 */}
+        {/* 邮件通知设置（含收件人） */}
         <div className="card">
           <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -581,70 +582,73 @@ export default function SettingsPage({ showSuccess, showError }) {
                 />
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* 邮件收件人设置 */}
-        <div className="card">
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>
-              收件人设置
-            </h3>
-            <button 
-              className="btn btn-secondary btn-sm" 
-              onClick={openEmailAdd}
-              disabled={!emailEnabled}
-              style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
-            >
-              + 添加
-            </button>
-          </div>
-          <div className="card-body" style={{ padding: 0, maxHeight: '250px', overflowY: 'auto' }}>
-            {emailReceivers.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--animal-text-color-disabled)', fontSize: '14px' }}>
-                暂无收件人
+            
+            {/* 收件人列表 */}
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <label className="form-label" style={{ margin: 0 }}>收件人列表</label>
+                <button 
+                  className="btn btn-secondary btn-sm" 
+                  onClick={openEmailAdd}
+                  disabled={!emailEnabled}
+                  style={!emailEnabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  + 添加
+                </button>
               </div>
-            ) : (
-              <table className="table" style={{ margin: 0 }}>
-                <thead>
-                  <tr>
-                    <th style={{ width: '50px' }}></th>
-                    <th style={{ width: '60px', textAlign: 'center' }}>序号</th>
-                    <th style={{ width: '100px' }}>标签</th>
-                    <th>邮箱</th>
-                    <th style={{ width: '120px', textAlign: 'right' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {emailReceivers.map((receiver, index) => (
-                    <tr key={receiver.id}>
-                      <td></td>
-                      <td style={{ textAlign: 'center' }}>{index + 1}</td>
-                      <td>{receiver.label}</td>
-                      <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
-                          <button 
-                            className="btn btn-secondary btn-sm"
-                            onClick={() => openEmailEdit(receiver)}
-                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                          >
-                            编辑
-                          </button>
-                          <button 
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleEmailDelete(receiver.id)}
-                            style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
-                          >
-                            删除
-                          </button>
-                        </div>
-                      </td>
+              
+              {emailReceivers.length === 0 ? (
+                <div style={{ 
+                  padding: '16px', 
+                  textAlign: 'center', 
+                  color: 'var(--animal-text-color-disabled)', 
+                  fontSize: '13px',
+                  background: 'var(--animal-bg-color)',
+                  borderRadius: 'var(--animal-border-radius-sm)',
+                  border: '1px dashed var(--animal-border-color-light)',
+                }}>
+                  暂无收件人，点击上方按钮添加
+                </div>
+              ) : (
+                <table className="table" style={{ margin: 0 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'left', paddingLeft: '12px' }}>#</th>
+                      <th style={{ width: '90px' }}>标签</th>
+                      <th>邮箱</th>
+                      <th style={{ width: '100px', textAlign: 'right', paddingRight: '12px' }}></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                  </thead>
+                  <tbody>
+                    {emailReceivers.map((receiver, index) => (
+                      <tr key={receiver.id}>
+                        <td style={{ textAlign: 'left', paddingLeft: '12px', color: 'var(--animal-text-color-secondary)', fontSize: '12px' }}>{index + 1}</td>
+                        <td>{receiver.label}</td>
+                        <td style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)' }}>{receiver.email}</td>
+                        <td style={{ textAlign: 'right', paddingRight: '12px' }}>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                            <button 
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => openEmailEdit(receiver)}
+                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                            >
+                              编辑
+                            </button>
+                            <button 
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleEmailDelete(receiver.id)}
+                              style={{ padding: '4px 10px', fontSize: '12px', whiteSpace: 'nowrap' }}
+                            >
+                              删除
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
 

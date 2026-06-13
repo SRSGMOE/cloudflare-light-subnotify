@@ -512,7 +512,7 @@ body {
 @media(max-width:1024px){
     .sidebar{width:200px}
     .main-content{margin-left:200px}
-    .settings-container{max-width:70% !important}
+    .settings-container{max-width:60% !important}
 }
 @media(max-width:768px){
     .sidebar{width:60px}
