@@ -23,6 +23,43 @@ function getCooldownRemaining(chatId, command) {
   return Math.ceil(remaining / 1000);
 }
 
+// 获取汇率 - 使用免费无需密钥的API
+async function getExchangeRates() {
+  // API 1: frankfurter.app (完全免费，开源，无需密钥，欧洲央行数据)
+  try {
+    const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.rates) {
+        const usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : 'N/A';
+        const eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : 'N/A';
+        const jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : 'N/A';
+        return { usd, eur, jpy };
+      }
+    }
+  } catch (e) {
+    console.log('frankfurter API failed:', e);
+  }
+  
+  // API 2: fawazahmed0 currency API (完全免费，CDN托管，无需密钥)
+  try {
+    const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+    if (response.ok) {
+      const data = await response.json();
+      if (data.cny) {
+        const usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : 'N/A';
+        const eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : 'N/A';
+        const jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : 'N/A';
+        return { usd, eur, jpy };
+      }
+    }
+  } catch (e) {
+    console.log('fawazahmed0 API failed:', e);
+  }
+  
+  return { usd: 'N/A', eur: 'N/A', jpy: 'N/A' };
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   
@@ -95,6 +132,23 @@ export async function onRequest(context) {
           ).all();
           
           const now = new Date();
+          
+          // 从数据库获取汇率
+          let rates = { usd: 'N/A', eur: 'N/A', jpy: 'N/A' };
+          try {
+            const { results: rateResults } = await env.DB.prepare(
+              "SELECT value FROM notify_settings WHERE key='exchange_rates'"
+            ).all();
+            if (rateResults.length > 0) {
+              const rateData = JSON.parse(rateResults[0].value);
+              rates = {
+                usd: rateData.usd || 'N/A',
+                eur: rateData.eur || 'N/A',
+                jpy: rateData.jpy || 'N/A'
+              };
+            }
+          } catch (e) {}
+          
           await sendMessage(
             '⚙️ 系统状态\n\n' +
             '📂 订阅总数: ' + (totalResults[0]?.count || 0) + ' 个\n' +
@@ -102,7 +156,10 @@ export async function onRequest(context) {
             '🚫 停止订阅: ' + (pausedResults[0]?.count || 0) + ' 个\n\n' +
             '🌏 世界时钟: ' + formatDateTime(now, 0) + '\n' +
             '🇨🇳 北京时间: ' + formatDateTime(now, 8) + '\n' +
-            '🇺🇸 美国东部: ' + formatDateTime(now, -4)
+            '🇺🇸 美国东部: ' + formatDateTime(now, -4) + '\n\n' +
+            '🇺🇸 美元汇率: 1USD = ' + rates.usd + 'CNY\n' +
+            '🇪🇺 欧元汇率: 1EUR = ' + rates.eur + 'CNY\n' +
+            '🇯🇵 日元汇率: 1JPY = ' + rates.jpy + 'CNY'
           );
         } catch (e) {
           await sendMessage('❌ 获取状态失败，请检查数据库配置');

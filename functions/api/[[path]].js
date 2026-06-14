@@ -352,6 +352,96 @@ export async function onRequest(context) {
       }
     }
     
+    // 获取汇率
+    if (path === '/exchange-rate' && method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='exchange_rates'"
+        ).all();
+        if (results.length > 0) {
+          return json(JSON.parse(results[0].value));
+        }
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
+      } catch (e) {
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
+      }
+    }
+    
+    // 刷新汇率（可被定时任务调用）
+    if (path === '/exchange-rate' && method === 'POST') {
+      try {
+        // 使用免费API获取汇率
+        let rates = { usd: null, eur: null, jpy: null };
+        
+        // API 1: frankfurter.app
+        try {
+          const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.rates) {
+              rates.usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : null;
+              rates.eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : null;
+              rates.jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : null;
+            }
+          }
+        } catch (e) {}
+        
+        // API 2: fawazahmed0
+        if (!rates.usd) {
+          try {
+            const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+            if (response.ok) {
+              const data = await response.json();
+              if (data.cny) {
+                rates.usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : null;
+                rates.eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : null;
+                rates.jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : null;
+              }
+            }
+          } catch (e) {}
+        }
+        
+        // 存储到数据库
+        const result = {
+          usd: rates.usd,
+          eur: rates.eur,
+          jpy: rates.jpy,
+          lastUpdate: new Date().toISOString()
+        };
+        
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('exchange_rates', ?)"
+        ).bind(JSON.stringify(result)).run();
+        
+        return json({ success: true, data: result });
+      } catch (e) {
+        return json({ success: false, error: e.message });
+      }
+    }
+    
+    // API 路径设置
+    if (path === '/api-paths' && method === 'GET') {
+      const { results } = await env.DB.prepare(
+        "SELECT value FROM notify_settings WHERE key='api_paths'"
+      ).all();
+      if (results.length > 0) {
+        try {
+          return json(JSON.parse(results[0].value));
+        } catch (e) {
+          return json({ check_notifications: '', exchange_rate: '' });
+        }
+      }
+      return json({ check_notifications: '', exchange_rate: '' });
+    }
+    
+    if (path === '/api-paths' && method === 'POST') {
+      const body = await request.json();
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('api_paths', ?)"
+      ).bind(JSON.stringify(body)).run();
+      return json({ success: true });
+    }
+    
     // 手动触发通知检查
     // 安全机制：通过随机路径前缀访问
     // 完整路径：/{API_PREFIX}/api/check-notifications

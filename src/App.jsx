@@ -7,7 +7,8 @@ import useToast from './hooks/useToast.js'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import SubscriptionPage from './pages/SubscriptionPage'
-import SettingsPage from './pages/SettingsPage'
+import NotifySettingsPage from './pages/NotifySettingsPage'
+import SystemSettingsPage from './pages/SystemSettingsPage'
 
 export default function App() {
   const [checking, setChecking] = useState(true)
@@ -98,17 +99,18 @@ export default function App() {
     )
   }
 
-  // 根据主题选择不同的图标
   const menuItems = currentTheme === 'animal-forest' 
     ? [
         { key: 'dashboard', icon: 'icon-miles', label: '数据表盘' },
         { key: 'subscriptions', icon: 'icon-design', label: '订阅管理' },
-        { key: 'settings', icon: 'icon-diy', label: '系统设置' },
+        { key: 'notify-settings', item: 475, label: '通知设置' },
+        { key: 'system-settings', icon: 'icon-diy', label: '系统设置' },
       ]
     : [
         { key: 'dashboard', icon: null, emoji: '📊', label: '数据表盘' },
         { key: 'subscriptions', icon: null, emoji: '📋', label: '订阅管理' },
-        { key: 'settings', icon: null, emoji: '⚙️', label: '系统设置' },
+        { key: 'notify-settings', icon: null, emoji: '🔔', label: '通知设置' },
+        { key: 'system-settings', icon: null, emoji: '⚙️', label: '系统设置' },
       ]
 
   return (
@@ -143,7 +145,7 @@ export default function App() {
             color: 'var(--animal-text-color)',
             margin: 0,
           }}>
-            订阅通知
+            Subnotify
           </h1>
         </div>
         
@@ -171,11 +173,9 @@ export default function App() {
               }}
             >
               {item.icon ? (
-                <Icon 
-                  name={item.icon} 
-                  size={24} 
-                  bounce
-                />
+                <Icon name={item.icon} size={24} bounce />
+              ) : item.item ? (
+                <Icon item={item.item} size={24} bounce />
               ) : (
                 <span style={{ fontSize: '20px', width: '24px', textAlign: 'center' }}>{item.emoji}</span>
               )}
@@ -298,8 +298,15 @@ export default function App() {
           />
         )}
         
-        {currentPage === 'settings' && (
-          <SettingsPage 
+        {currentPage === 'notify-settings' && (
+          <NotifySettingsPage 
+            showSuccess={showSuccess}
+            showError={showError}
+          />
+        )}
+        
+        {currentPage === 'system-settings' && (
+          <SystemSettingsPage 
             showSuccess={showSuccess}
             showError={showError}
           />

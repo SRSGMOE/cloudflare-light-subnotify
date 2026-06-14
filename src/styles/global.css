@@ -530,3 +530,9 @@ body {
     .form-row{grid-template-columns:1fr}
     th,td{padding:10px 12px;font-size:13px}
 }
+
+
+/* 数据表盘响应式 */
+@media(max-width:768px){
+    .dashboard-cards{grid-template-columns:1fr !important}
+}

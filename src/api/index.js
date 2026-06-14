@@ -136,6 +136,31 @@ export async function testMiao(data) {
   return response.json()
 }
 
+export async function getExchangeRate() {
+  const response = await fetchApi('/exchange-rate')
+  return response.json()
+}
+
+export async function refreshExchangeRate() {
+  const response = await fetchApi('/exchange-rate', {
+    method: 'POST',
+  })
+  return response.json()
+}
+
+export async function getApiPaths() {
+  const response = await fetchApi('/api-paths')
+  return response.json()
+}
+
+export async function saveApiPaths(data) {
+  const response = await fetchApi('/api-paths', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
 export async function login(username, password) {
   const response = await fetch('/api/login', {
     method: 'POST',

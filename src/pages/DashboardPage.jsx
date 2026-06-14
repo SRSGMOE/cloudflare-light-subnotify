@@ -1,16 +1,28 @@
 import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
+import { getExchangeRate, refreshExchangeRate } from '../api'
 
 export default function DashboardPage({ subscriptions }) {
   const { currentTheme } = useTheme()
   const [utcTime, setUtcTime] = useState('')
   const [cstTime, setCstTime] = useState('')
   const [etTime, setEtTime] = useState('')
+  const [exchangeRates, setExchangeRates] = useState({
+    usd: null,
+    eur: null,
+    jpy: null,
+    lastUpdate: null
+  })
+  const [ratesLoading, setRatesLoading] = useState(false)
 
   useEffect(() => {
     updateTime()
     const timer = setInterval(updateTime, 1000)
+    
+    // 页面加载时获取汇率
+    loadExchangeRates()
+    
     return () => clearInterval(timer)
   }, [])
 
@@ -32,8 +44,79 @@ export default function DashboardPage({ subscriptions }) {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
 
+  // 从数据库加载汇率
+  const loadExchangeRates = async () => {
+    try {
+      const data = await getExchangeRate()
+      if (data.lastUpdate) {
+        setExchangeRates(data)
+      }
+    } catch (e) {
+      console.error('加载汇率失败:', e)
+    }
+  }
+
+  // 手动刷新汇率
+  const handleRefreshRates = async () => {
+    setRatesLoading(true)
+    try {
+      const result = await refreshExchangeRate()
+      if (result.success && result.data) {
+        setExchangeRates(result.data)
+      }
+    } catch (e) {
+      console.error('刷新汇率失败:', e)
+    }
+    setRatesLoading(false)
+  }
+
   const active = subscriptions.filter(s => s.is_active)
   const paused = subscriptions.filter(s => !s.is_active)
+
+  // 卡片样式
+  const cardStyle = {
+    background: '#f7f3df',
+    borderRadius: '20px',
+    padding: '24px',
+    boxShadow: 'var(--animal-shadow-base)',
+    flex: 1,
+    minWidth: '300px',
+  }
+
+  const cardTitleStyle = {
+    fontSize: '16px',
+    fontWeight: 700,
+    color: 'var(--animal-text-color)',
+    marginBottom: '20px',
+    paddingBottom: '12px',
+    borderBottom: '2px solid var(--animal-border-color-light)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  }
+
+  const itemStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '10px 0',
+    borderBottom: '1px solid var(--animal-border-color-light)',
+  }
+
+  const itemLabelStyle = {
+    fontSize: '13px',
+    color: 'var(--animal-text-color-secondary)',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  }
+
+  const itemValueStyle = {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: 'var(--animal-text-color)',
+    fontFamily: 'monospace',
+  }
 
   return (
     <div>
@@ -41,7 +124,7 @@ export default function DashboardPage({ subscriptions }) {
         fontSize: '24px', 
         fontWeight: 700, 
         color: 'var(--animal-text-color)',
-        marginBottom: '24px',
+        marginBottom: '16px',
       }}>
         数据表盘
       </h2>
@@ -66,166 +149,131 @@ export default function DashboardPage({ subscriptions }) {
         </div>
       </div>
       
-      {/* 时间卡片 */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(3, 1fr)', 
-        gap: '16px',
+      {/* 三列卡片布局 */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '24px',
         marginBottom: '24px',
-      }}>
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, #5B9BD5, #4472C4)',
-          color: '#fff',
-        }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={477} size={16} />
-              ) : (
-                <span style={{ fontSize: '14px' }}>🕐</span>
-              )}
-              <span style={{ fontSize: '12px', opacity: 0.9 }}>世界协调时 UTC</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 700 }}>
-              {utcTime}
-            </div>
+      }} className="dashboard-cards">
+        
+        {/* 时间卡片 */}
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>
+            <span style={{ fontSize: '20px' }}>🕐</span>
+            世界时钟
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🌐</span>
+              UTC
+            </span>
+            <span style={itemValueStyle}>{utcTime}</span>
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🇨🇳</span>
+              UTC+8
+            </span>
+            <span style={itemValueStyle}>{cstTime}</span>
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🇺🇸</span>
+              UTC-4
+            </span>
+            <span style={itemValueStyle}>{etTime}</span>
           </div>
         </div>
         
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, #ED7D31, #C55A11)',
-          color: '#fff',
-        }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={477} size={16} />
-              ) : (
-                <span style={{ fontSize: '14px' }}>🕐</span>
-              )}
-              <span style={{ fontSize: '12px', opacity: 0.9 }}>北京时间 CST</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 700 }}>
-              {cstTime}
-            </div>
+        {/* 订阅统计卡片 */}
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>
+            <span style={{ fontSize: '20px' }}>📊</span>
+            订阅统计
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>📂</span>
+              订阅总数
+            </span>
+            <span style={{...itemValueStyle, color: 'var(--animal-primary-color)'}}>{subscriptions.length}</span>
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🔥</span>
+              活跃订阅
+            </span>
+            <span style={{...itemValueStyle, color: 'var(--animal-success-color)'}}>{active.length}</span>
+          </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🚫</span>
+              停止订阅
+            </span>
+            <span style={{...itemValueStyle, color: 'var(--animal-error-color)'}}>{paused.length}</span>
           </div>
         </div>
         
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, #70AD47, #548235)',
-          color: '#fff',
-        }}>
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              {currentTheme === 'animal-forest' ? (
-                <Icon item={477} size={16} />
-              ) : (
-                <span style={{ fontSize: '14px' }}>🕐</span>
-              )}
-              <span style={{ fontSize: '12px', opacity: 0.9 }}>美国东部 ET</span>
-            </div>
-            <div style={{ fontSize: '18px', fontWeight: 700 }}>
-              {etTime}
-            </div>
+        {/* 货币汇率卡片 */}
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>
+            <span style={{ fontSize: '20px' }}>💰</span>
+            货币汇率
+            <button 
+              onClick={handleRefreshRates}
+              disabled={ratesLoading}
+              style={{
+                marginLeft: 'auto',
+                padding: '4px 8px',
+                fontSize: '11px',
+                background: 'var(--animal-bg-color)',
+                border: '1px solid var(--animal-border-color)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                color: 'var(--animal-text-color-secondary)',
+              }}
+            >
+              {ratesLoading ? '刷新中...' : '刷新'}
+            </button>
           </div>
-        </div>
-      </div>
-      
-      {/* 数据卡片 */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(3, 1fr)', 
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        <div className="card">
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                background: 'var(--animal-primary-color-bg)',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                {currentTheme === 'animal-forest' ? (
-                  <Icon item={320} size={28} />
-                ) : (
-                  <span style={{ fontSize: '24px' }}>📋</span>
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
-                  {subscriptions.length}
-                </div>
-                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
-                  总订阅
-                </div>
-              </div>
-            </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🇺🇸</span>
+              美元 USD
+            </span>
+            <span style={itemValueStyle}>
+              {exchangeRates.usd ? `¥${exchangeRates.usd}` : '未更新'}
+            </span>
           </div>
-        </div>
-        
-        <div className="card">
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                background: '#e8f5e9',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                {currentTheme === 'animal-forest' ? (
-                  <Icon item={319} size={28} />
-                ) : (
-                  <span style={{ fontSize: '24px' }}>✅</span>
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
-                  {active.length}
-                </div>
-                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
-                  订阅中
-                </div>
-              </div>
-            </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🇪🇺</span>
+              欧元 EUR
+            </span>
+            <span style={itemValueStyle}>
+              {exchangeRates.eur ? `¥${exchangeRates.eur}` : '未更新'}
+            </span>
           </div>
-        </div>
-        
-        <div className="card">
-          <div className="card-body">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                background: '#fff3e0',
-                borderRadius: 'var(--animal-border-radius-sm)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                {currentTheme === 'animal-forest' ? (
-                  <Icon item={318} size={28} />
-                ) : (
-                  <span style={{ fontSize: '24px' }}>⏸️</span>
-                )}
-              </div>
-              <div>
-                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--animal-text-color)' }}>
-                  {paused.length}
-                </div>
-                <div style={{ fontSize: '14px', color: 'var(--animal-text-color-secondary)' }}>
-                  已停止
-                </div>
-              </div>
-            </div>
+          <div style={itemStyle}>
+            <span style={itemLabelStyle}>
+              <span style={{ fontSize: '16px' }}>🇯🇵</span>
+              日元 JPY
+            </span>
+            <span style={itemValueStyle}>
+              {exchangeRates.jpy ? `¥${exchangeRates.jpy}` : '未更新'}
+            </span>
           </div>
+          {exchangeRates.lastUpdate && (
+            <div style={{
+              marginTop: '12px',
+              fontSize: '11px',
+              color: 'var(--animal-text-color-disabled)',
+              textAlign: 'center',
+            }}>
+              更新时间: {new Date(exchangeRates.lastUpdate).toLocaleString('zh-CN')}
+            </div>
+          )}
         </div>
       </div>
     </div>
