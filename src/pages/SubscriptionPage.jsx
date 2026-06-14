@@ -333,9 +333,9 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}
                   style={{ 
-                    color: record.is_active ? '#b45309' : 'var(--animal-success-color)', 
-                    borderColor: record.is_active ? '#b45309' : 'var(--animal-success-color)',
-                    background: record.is_active ? '#fef3c7' : 'transparent'
+                    color: record.is_active ? '#ca8a04' : 'var(--animal-success-color)', 
+                    borderColor: record.is_active ? '#ca8a04' : 'var(--animal-success-color)',
+                    background: 'transparent'
                   }}>
                   {currentTheme === 'animal-forest' ? <Icon item={record.is_active ? 387 : 385} size={14} /> : <span>{record.is_active ? '⏹️' : '▶️'}</span>}
                   {record.is_active ? '停止' : '恢复'}
