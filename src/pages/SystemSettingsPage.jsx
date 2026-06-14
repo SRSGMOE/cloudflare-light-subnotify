@@ -50,15 +50,22 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
   const handleGeneratePaths = async () => {
     const path = generateRandomPath()
     const newPaths = { check_notifications: path, exchange_rate: path }
+    
+    // 弹窗确认
+    const confirmed = window.confirm(`确定生成新的API路径吗？
+
+新路径：${path}
+
+注意：生成后旧路径将失效！`)
+    if (!confirmed) return
+    
     setApiPaths(newPaths)
     
-    // 自动生成后自动保存
-    setApiPathsLoading(true)
+    // 确认后自动保存
     try {
       await saveApiPaths(newPaths)
       showSuccess('API路径已生成并保存')
     } catch (e) { showError('保存失败') }
-    setApiPathsLoading(false)
   }
 
   const handleCopyPath = (type) => {
@@ -163,7 +170,7 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
               color: 'var(--animal-text-color-secondary)',
               marginTop: '8px'
             }}>
-              💡 随机路径规则：大小写字母和数字，16位。用于防止API被滥用。
+              💡 随机路径规则：大小写字母和数字，18位。用于防止API被滥用。
             </div>
           </div>
         </div>
