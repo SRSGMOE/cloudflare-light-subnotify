@@ -17,16 +17,18 @@ export async function onRequest(context) {
         apiPaths = JSON.parse(results[0].value);
       }
     }
-  } catch (e) {}
+  } catch (e) {
+    console.error('Failed to load API paths:', e);
+  }
   
   // 检查是否是随机路径的 API 请求
   const checkPath = apiPaths.check_notifications;
   const exchangePath = apiPaths.exchange_rate;
   
-  if (checkPath && path.startsWith('/' + checkPath + '/api/')) {
-    const newPath = path.slice(('/' + checkPath).length);
+  // 检查通知 API
+  if (checkPath && path === `/${checkPath}/api/check-notifications`) {
     const newUrl = new URL(request.url);
-    newUrl.pathname = newPath;
+    newUrl.pathname = '/api/check-notifications';
     const newRequest = new Request(newUrl.toString(), {
       method: request.method,
       headers: request.headers,
@@ -35,10 +37,10 @@ export async function onRequest(context) {
     return next(newRequest);
   }
   
-  if (exchangePath && path.startsWith('/' + exchangePath + '/api/')) {
-    const newPath = path.slice(('/' + exchangePath).length);
+  // 检查汇率 API
+  if (exchangePath && path === `/${exchangePath}/api/exchange-rate`) {
     const newUrl = new URL(request.url);
-    newUrl.pathname = newPath;
+    newUrl.pathname = '/api/exchange-rate';
     const newRequest = new Request(newUrl.toString(), {
       method: request.method,
       headers: request.headers,

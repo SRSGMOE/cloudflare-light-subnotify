@@ -38,11 +38,11 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
     setNotifyLoading(false)
   }
 
-  // 生成随机路径
+  // 生成随机路径（18位大小写字母和数字）
   const generateRandomPath = () => {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
     let result = ''
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 18; i++) {
       result += chars.charAt(Math.floor(Math.random() * chars.length))
     }
     return result
@@ -108,9 +108,15 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   className="input"
-                  value={apiPaths.check_notifications}
-                  onChange={(e) => setApiPaths({...apiPaths, check_notifications: e.target.value})}
-                  placeholder="随机路径"
+                  value={apiPaths.check_notifications ? `${window.location.origin}/${apiPaths.check_notifications}/api/check-notifications` : ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const match = value.match(/\/([^/]+)\/api\/check-notifications/)
+                    if (match) {
+                      setApiPaths({...apiPaths, check_notifications: match[1]})
+                    }
+                  }}
+                  placeholder="请先随机生成路径"
                   style={{ flex: 1 }}
                 />
                 <button 
@@ -122,9 +128,6 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
                   📋
                 </button>
               </div>
-              <div style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)', marginTop: '4px' }}>
-                完整路径: {window.location.origin}/{apiPaths.check_notifications || '...'}/api/check-notifications
-              </div>
             </div>
             
             <div className="form-group">
@@ -132,9 +135,15 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input
                   className="input"
-                  value={apiPaths.exchange_rate}
-                  onChange={(e) => setApiPaths({...apiPaths, exchange_rate: e.target.value})}
-                  placeholder="随机路径"
+                  value={apiPaths.exchange_rate ? `${window.location.origin}/${apiPaths.exchange_rate}/api/exchange-rate` : ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    const match = value.match(/\/([^/]+)\/api\/exchange-rate/)
+                    if (match) {
+                      setApiPaths({...apiPaths, exchange_rate: match[1]})
+                    }
+                  }}
+                  placeholder="请先随机生成路径"
                   style={{ flex: 1 }}
                 />
                 <button 
@@ -145,9 +154,6 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
                 >
                   📋
                 </button>
-              </div>
-              <div style={{ fontSize: '12px', color: 'var(--animal-text-color-secondary)', marginTop: '4px' }}>
-                完整路径: {window.location.origin}/{apiPaths.exchange_rate || '...'}/api/exchange-rate
               </div>
             </div>
 

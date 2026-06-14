@@ -512,7 +512,7 @@ body {
 @media(max-width:1024px){
     .sidebar{width:200px}
     .main-content{margin-left:200px}
-    .settings-container{max-width:60% !important}
+    .settings-container{max-width:80% !important}
 }
 @media(max-width:768px){
     .sidebar{width:60px}
@@ -530,7 +530,6 @@ body {
     .form-row{grid-template-columns:1fr}
     th,td{padding:10px 12px;font-size:13px}
 }
-
 
 /* 数据表盘响应式 */
 @media(max-width:768px){
