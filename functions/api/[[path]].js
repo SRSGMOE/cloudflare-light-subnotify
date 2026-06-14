@@ -62,6 +62,171 @@ export async function onRequest(context) {
       });
     }
     
+    // 汇率API - 不需要认证
+    if (path === '/exchange-rate' && method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='exchange_rates'"
+        ).all();
+        if (results.length > 0) {
+          return json(JSON.parse(results[0].value));
+        }
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
+      } catch (e) {
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
+      }
+    }
+    
+    if (path === '/exchange-rate' && method === 'POST') {
+      try {
+        let rates = { usd: null, eur: null, jpy: null };
+        try {
+          const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.rates) {
+              rates.usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : null;
+              rates.eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : null;
+              rates.jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : null;
+            }
+          }
+        } catch (e) {}
+        
+        if (!rates.usd) {
+          try {
+            const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+            if (response.ok) {
+              const data = await response.json();
+              if (data.cny) {
+                rates.usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : null;
+                rates.eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : null;
+                rates.jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : null;
+              }
+            }
+          } catch (e) {}
+        }
+        
+        const result = {
+          usd: rates.usd,
+          eur: rates.eur,
+          jpy: rates.jpy,
+          lastUpdate: new Date().toISOString()
+        };
+        
+        await env.DB.prepare(
+          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('exchange_rates', ?)"
+        ).bind(JSON.stringify(result)).run();
+        
+        return json({ success: true, data: result });
+      } catch (e) {
+        return json({ success: false, error: e.message });
+      }
+    }
+    
+        // 手动触发通知检查
+    // 安全机制：通过随机路径前缀访问
+    // 完整路径：/{API_PREFIX}/api/check-notifications
+    // API_PREFIX 在 Pages 环境变量中配置（Secret 类型）
+    //
+    // 中间件会自动移除随机前缀，此代码只需处理实际的 check-notifications 请求
+    if (path === '/check-notifications' && method === 'POST') {
+      const now = new Date();
+      const today = now.toISOString().split('T')[0];
+      
+      // 获取所有到期的订阅
+      const { results } = await env.DB.prepare(
+        'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
+      ).bind(today).all();
+      
+      let sent = 0;
+      for (const sub of results) {
+        try {
+          const { results: tokenResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
+          ).all();
+          const { results: chatResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
+          ).all();
+          
+          const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
+          const chatId = chatResults.length > 0 ? chatResults[0].value : '';
+          
+          if (!botToken || !chatId) continue;
+          
+          // 获取通知标题
+          const { results: titleResults } = await env.DB.prepare(
+            "SELECT value FROM notify_settings WHERE key='title'"
+          ).all();
+          const notifyTitle = titleResults.length > 0 ? titleResults[0].value : '订阅到期提醒';
+          
+          // 计算下一个通知日期
+          const nextDate = calculateNextDate(
+            sub.cycle_type, 
+            sub.cycle_value, 
+            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
+            sub.timezone, 
+            sub.next_notify_date
+          );
+          
+          // 构建通知消息
+          const tzLabels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
+          const cycleLabels = {
+            daily: '每日',
+            weekly: '每周',
+            monthly: '每月',
+            yearly: '每年',
+            specific: sub.cycle_value,
+          };
+          const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+          let cycleText = cycleLabels[sub.cycle_type] || sub.cycle_type;
+          if (sub.cycle_type === 'weekly') cycleText += days[parseInt(sub.cycle_value)] || '';
+          if (sub.cycle_type === 'monthly') cycleText += parseInt(sub.cycle_value) + '日';
+          if (sub.cycle_type === 'yearly') {
+            const parts = (sub.cycle_value || '1-1').split('-');
+            cycleText = '每年' + parts[0] + '月' + parseInt(parts[1]) + '日';
+          }
+          
+          // 构建收支信息
+          let financeText = '无';
+          if (sub.finance_type && sub.finance_type !== 'none' && sub.finance_amount) {
+            const financePrefix = sub.finance_type === 'expense' ? '支出' : '收入';
+            financeText = financePrefix + ' ' + sub.finance_amount + ' ' + (sub.finance_currency || 'CNY');
+          }
+          
+          const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
+            '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
+            '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
+            '💰 项目收支：' + financeText + String.fromCharCode(10) +
+            '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
+            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
+            '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+          
+          // 发送通知
+          await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: chatId, text: message })
+          });
+          
+          // 更新下次通知日期
+          if (sub.cycle_type !== 'specific') {
+            await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
+              .bind(nextDate, sub.id).run();
+          } else {
+            // 指定日期通知完成后自动暂停
+            await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
+              .bind(sub.id).run();
+          }
+          
+          sent++;
+        } catch (e) {
+          console.error('发送通知失败:', e);
+        }
+      }
+      
+      return json({ success: true, checked: results.length, sent });
+    }
+
     // 需要认证的接口
     if (env.ADMIN_PASSWORD) {
       const authHeader = request.headers.get('Authorization');
@@ -359,73 +524,7 @@ export async function onRequest(context) {
       }
     }
     
-    // 获取汇率
-    if (path === '/exchange-rate' && method === 'GET') {
-      try {
-        const { results } = await env.DB.prepare(
-          "SELECT value FROM notify_settings WHERE key='exchange_rates'"
-        ).all();
-        if (results.length > 0) {
-          return json(JSON.parse(results[0].value));
-        }
-        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
-      } catch (e) {
-        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
-      }
-    }
-    
-    // 刷新汇率（可被定时任务调用）
-    if (path === '/exchange-rate' && method === 'POST') {
-      try {
-        // 使用免费API获取汇率
-        let rates = { usd: null, eur: null, jpy: null };
-        
-        // API 1: frankfurter.app
-        try {
-          const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
-          if (response.ok) {
-            const data = await response.json();
-            if (data.rates) {
-              rates.usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : null;
-              rates.eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : null;
-              rates.jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : null;
-            }
-          }
-        } catch (e) {}
-        
-        // API 2: fawazahmed0
-        if (!rates.usd) {
-          try {
-            const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
-            if (response.ok) {
-              const data = await response.json();
-              if (data.cny) {
-                rates.usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : null;
-                rates.eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : null;
-                rates.jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : null;
-              }
-            }
-          } catch (e) {}
-        }
-        
-        // 存储到数据库
-        const result = {
-          usd: rates.usd,
-          eur: rates.eur,
-          jpy: rates.jpy,
-          lastUpdate: new Date().toISOString()
-        };
-        
-        await env.DB.prepare(
-          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('exchange_rates', ?)"
-        ).bind(JSON.stringify(result)).run();
-        
-        return json({ success: true, data: result });
-      } catch (e) {
-        return json({ success: false, error: e.message });
-      }
-    }
-    
+
     // API 路径设置
     if (path === '/api-paths' && method === 'GET') {
       const { results } = await env.DB.prepare(
@@ -449,109 +548,7 @@ export async function onRequest(context) {
       return json({ success: true });
     }
     
-    // 手动触发通知检查
-    // 安全机制：通过随机路径前缀访问
-    // 完整路径：/{API_PREFIX}/api/check-notifications
-    // API_PREFIX 在 Pages 环境变量中配置（Secret 类型）
-    //
-    // 中间件会自动移除随机前缀，此代码只需处理实际的 check-notifications 请求
-    if (path === '/check-notifications' && method === 'POST') {
-      const now = new Date();
-      const today = now.toISOString().split('T')[0];
-      
-      // 获取所有到期的订阅
-      const { results } = await env.DB.prepare(
-        'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
-      ).bind(today).all();
-      
-      let sent = 0;
-      for (const sub of results) {
-        try {
-          const { results: tokenResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
-          ).all();
-          const { results: chatResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
-          ).all();
-          
-          const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
-          const chatId = chatResults.length > 0 ? chatResults[0].value : '';
-          
-          if (!botToken || !chatId) continue;
-          
-          // 获取通知标题
-          const { results: titleResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='title'"
-          ).all();
-          const notifyTitle = titleResults.length > 0 ? titleResults[0].value : '订阅到期提醒';
-          
-          // 计算下一个通知日期
-          const nextDate = calculateNextDate(
-            sub.cycle_type, 
-            sub.cycle_value, 
-            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
-            sub.timezone, 
-            sub.next_notify_date
-          );
-          
-          // 构建通知消息
-          const tzLabels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
-          const cycleLabels = {
-            daily: '每日',
-            weekly: '每周',
-            monthly: '每月',
-            yearly: '每年',
-            specific: sub.cycle_value,
-          };
-          const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-          let cycleText = cycleLabels[sub.cycle_type] || sub.cycle_type;
-          if (sub.cycle_type === 'weekly') cycleText += days[parseInt(sub.cycle_value)] || '';
-          if (sub.cycle_type === 'monthly') cycleText += parseInt(sub.cycle_value) + '日';
-          if (sub.cycle_type === 'yearly') {
-            const parts = (sub.cycle_value || '1-1').split('-');
-            cycleText = '每年' + parts[0] + '月' + parseInt(parts[1]) + '日';
-          }
-          
-          // 构建收支信息
-          let financeText = '无';
-          if (sub.finance_type && sub.finance_type !== 'none' && sub.finance_amount) {
-            const financePrefix = sub.finance_type === 'expense' ? '支出' : '收入';
-            financeText = financePrefix + ' ' + sub.finance_amount + ' ' + (sub.finance_currency || 'CNY');
-          }
-          
-          const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
-            '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
-            '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
-            '💰 项目收支：' + financeText + String.fromCharCode(10) +
-            '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
-            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
-            '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
-          
-          // 发送通知
-          await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: message })
-          });
-          
-          // 更新下次通知日期
-          if (sub.cycle_type !== 'specific') {
-            await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
-              .bind(nextDate, sub.id).run();
-          } else {
-            // 指定日期通知完成后自动暂停
-            await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
-              .bind(sub.id).run();
-          }
-          
-          sent++;
-        } catch (e) {
-          console.error('发送通知失败:', e);
-        }
-      }
-      
-      return json({ success: true, checked: results.length, sent });
-    }
+
     
     return json({ error: 'API路由未找到' }, 404);
   } catch (error) {
