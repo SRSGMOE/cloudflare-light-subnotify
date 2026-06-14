@@ -20,7 +20,7 @@ export async function onRequest(context) {
       }
     }
   } catch (e) {
-    console.error('Failed to load API paths:', e);
+    // 静默处理错误
   }
   
   const checkPath = apiPaths.check_notifications;
@@ -28,14 +28,17 @@ export async function onRequest(context) {
   
   // 检查通知 API (POST)
   if (checkPath && path === `/${checkPath}/api/check-notifications` && request.method === 'POST') {
+    // 重写 URL 到正确的 API 路径
     const newUrl = new URL(request.url);
     newUrl.pathname = '/api/check-notifications';
+    // 创建新的请求
     const newRequest = new Request(newUrl.toString(), {
-      method: request.method,
+      method: 'POST',
       headers: request.headers,
       body: request.body,
     });
-    return next(newRequest);
+    // 使用 env.ASSETS.fetch 或直接处理
+    return handleApiRequest(newRequest, env);
   }
   
   // 汇率 API - GET (获取汇率)
@@ -46,7 +49,7 @@ export async function onRequest(context) {
       method: 'GET',
       headers: request.headers,
     });
-    return next(newRequest);
+    return handleApiRequest(newRequest, env);
   }
   
   // 汇率 API - POST (刷新汇率)
@@ -58,9 +61,23 @@ export async function onRequest(context) {
       headers: request.headers,
       body: request.body,
     });
-    return next(newRequest);
+    return handleApiRequest(newRequest, env);
   }
   
   // 正常处理其他请求
   return next();
+}
+
+// 处理 API 请求
+async function handleApiRequest(request, env) {
+  try {
+    // 动态导入 API 处理函数
+    const { onRequest } = await import('./api/[[path]].js');
+    return onRequest({ request, env });
+  } catch (e) {
+    return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
 }
