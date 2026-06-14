@@ -273,7 +273,7 @@ export default function NotifySettingsPage({ showSuccess, showError }) {
         通知设置
       </h2>
 
-      <div style={{ maxWidth: '60%', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} className="settings-container">
+      <div style={{ maxWidth: '40%', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} className="settings-container">
 
         {/* TG Bot 设置 */}
         <div className="card">

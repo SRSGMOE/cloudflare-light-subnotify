@@ -12,7 +12,6 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
   
   // API 路径
   const [apiPaths, setApiPaths] = useState({ check_notifications: '', exchange_rate: '' })
-  const [apiPathsLoading, setApiPathsLoading] = useState(false)
 
   useEffect(() => { fetchSettings() }, [])
 
@@ -48,22 +47,24 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
     return result
   }
 
-  const handleGeneratePaths = () => {
+  const handleGeneratePaths = async () => {
     const path = generateRandomPath()
-    setApiPaths({ check_notifications: path, exchange_rate: path })
-  }
-
-  const handleSaveApiPaths = async () => {
+    const newPaths = { check_notifications: path, exchange_rate: path }
+    setApiPaths(newPaths)
+    
+    // 自动生成后自动保存
     setApiPathsLoading(true)
     try {
-      await saveApiPaths(apiPaths)
-      showSuccess('API路径已保存')
+      await saveApiPaths(newPaths)
+      showSuccess('API路径已生成并保存')
     } catch (e) { showError('保存失败') }
     setApiPathsLoading(false)
   }
 
-  const handleCopyPath = (path) => {
-    const url = window.location.origin + '/' + path + '/api/'
+  const handleCopyPath = (type) => {
+    const path = type === 'check' ? apiPaths.check_notifications : apiPaths.exchange_rate
+    const endpoint = type === 'check' ? '/api/check-notifications' : '/api/exchange-rate'
+    const url = window.location.origin + '/' + path + endpoint
     navigator.clipboard.writeText(url).then(() => {
       showSuccess('已复制到剪贴板')
     }).catch(() => {
@@ -86,19 +87,16 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
         系统设置
       </h2>
 
-      <div style={{ maxWidth: '50%', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} className="settings-container">
+      <div style={{ maxWidth: '40%', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} className="settings-container">
 
         {/* API 路径设置 */}
         <div className="card">
-          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="card-header">
             <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>API 路径设置</h3>
-            <button className="btn btn-primary btn-sm" onClick={handleSaveApiPaths} disabled={apiPathsLoading}>
-              {apiPathsLoading ? '保存中...' : '保存设置'}
-            </button>
           </div>
           <div className="card-body">
             <div style={{ marginBottom: '16px' }}>
-              <button className="btn btn-secondary" onClick={handleGeneratePaths} style={{ marginBottom: '16px' }}>
+              <button className="btn btn-primary" onClick={handleGeneratePaths} style={{ marginBottom: '16px' }}>
                 🎲 随机生成路径
               </button>
             </div>
@@ -121,7 +119,7 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
                 />
                 <button 
                   className="btn btn-secondary"
-                  onClick={() => handleCopyPath(apiPaths.check_notifications)}
+                  onClick={() => handleCopyPath('check')}
                   disabled={!apiPaths.check_notifications}
                   title="复制完整URL"
                 >
@@ -148,7 +146,7 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
                 />
                 <button 
                   className="btn btn-secondary"
-                  onClick={() => handleCopyPath(apiPaths.exchange_rate)}
+                  onClick={() => handleCopyPath('exchange')}
                   disabled={!apiPaths.exchange_rate}
                   title="复制完整URL"
                 >
