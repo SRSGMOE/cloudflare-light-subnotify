@@ -15,57 +15,8 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
   const [apiPaths, setApiPaths] = useState({ check_notifications: '', exchange_rate: '' })
   
   // 确认弹窗
-  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, type: 'warning' })
-
-  useEffect(() => { fetchSettings() }, [])
-
-  const fetchSettings = async () => {
-    try {
-      const [notify, paths] = await Promise.all([
-        getNotifySettings(),
-        getApiPaths()
-      ])
-      setNotifySettings(notify)
-      if (paths.check_notifications || paths.exchange_rate) {
-        setApiPaths(paths)
-      }
-    } catch (e) {}
-  }
-
-  const handleSaveNotify = async () => {
-    setNotifyLoading(true)
-    try {
-      await saveNotifySettings(notifySettings)
-      showSuccess('通知标题已保存')
-    } catch (e) { showError('保存失败') }
-    setNotifyLoading(false)
-  }
-
-  // 生成随机路径（18位大小写字母和数字）
-  const generateRandomPath = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-    let result = ''
-    for (let i = 0; i < 18; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length))
-    }
-    return result
-  }
-
-  const hideConfirm = () => setConfirmModal({ ...confirmModal, visible: false })
-
-  const handleGeneratePaths = async () => {
-    const path = generateRandomPath()
-    const newPaths = { check_notifications: path, exchange_rate: path }
-    
-    // 页内弹窗确认
-    setConfirmModal({
-      visible: true,
-      title: '确认生成新路径',
-      message: '确定生成新的API路径吗？
-
-新路径：' + path + '
-
-注意：生成后旧路径将失效！',
+      message: '', onConfirm: null, type: 'warning' })  useEffect(() => { fetchSettings() }, [])  const fetchSettings = async () => {    try {      const [notify, paths] = await Promise.all([        getNotifySettings(),        getApiPaths()      ])      setNotifySettings(notify)      if (paths.check_notifications || paths.exchange_rate) {        setApiPaths(paths)      }    } catch (e) {}  }  const handleSaveNotify = async () => {    setNotifyLoading(true)    try {      await saveNotifySettings(notifySettings)      showSuccess('通知标题已保存')    } catch (e) { showError('保存失败') }    setNotifyLoading(false)  }  // 生成随机路径（18位大小写字母和数字）  const generateRandomPath = () => {    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'    let result = ''    for (let i = 0; i < 18; i++) {      result += chars.charAt(Math.floor(Math.random() * chars.length))    }    return result  }  const hideConfirm = () => setConfirmModal({ ...confirmModal, visible: false })  const handleGeneratePaths = async () => {    const path = generateRandomPath()    const newPaths = { check_notifications: path, exchange_rate: path }        // 页内弹窗确认    setConfirmModal({      visible: true,      title: '确认生成新路径',
+      message: '确定生成新的API路径吗？新路径：' + path + '注意：生成后旧路径将失效！',
       type: 'warning',
       onConfirm: async () => {
         setConfirmModal({ ...confirmModal, visible: false })
