@@ -75,8 +75,9 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
 
 📦 订阅名称：示例订阅
 🔖 订阅内容：这是订阅内容示例
-🌏 当前时区：北京时间 UTC+8
+💰 项目收支：支出 100 CNY
 📮 通知周期：每周五 14:30
+🌏 当前时区：北京时间 UTC+8
 📆 下次通知：2024-01-12 14:30`
 
   return (

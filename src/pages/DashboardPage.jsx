@@ -71,7 +71,7 @@ export default function DashboardPage({ subscriptions }) {
   const cardStyle = {
     background: '#f7f3df',
     borderRadius: '20px',
-    padding: '28px',
+    padding: '24px 28px',
     boxShadow: 'var(--animal-shadow-base)',
     flex: 1,
     minWidth: '300px',
@@ -81,20 +81,18 @@ export default function DashboardPage({ subscriptions }) {
     fontSize: '18px',
     fontWeight: 700,
     color: 'var(--animal-text-color)',
-    marginBottom: '24px',
-    paddingBottom: '16px',
-    borderBottom: '2px solid var(--animal-border-color-light)',
+    marginBottom: '20px',
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
+    position: 'relative',
   }
 
   const itemStyle = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '14px 0',
-    borderBottom: '1px solid var(--animal-border-color-light)',
+    padding: '12px 0',
   }
 
   const itemLabelStyle = {
@@ -206,11 +204,21 @@ export default function DashboardPage({ subscriptions }) {
               <span style={{ fontSize: '20px' }}>💰</span>
             )}
             货币汇率
+            {exchangeRates.lastUpdate && (
+              <span style={{
+                marginLeft: 'auto',
+                fontSize: '11px',
+                color: 'var(--animal-text-color-disabled)',
+                fontWeight: 400,
+              }}>
+                {new Date(exchangeRates.lastUpdate).toLocaleString('zh-CN')}
+              </span>
+            )}
             <button 
               onClick={handleRefreshRates}
               disabled={ratesLoading}
               style={{
-                marginLeft: 'auto',
+                marginLeft: exchangeRates.lastUpdate ? '8px' : 'auto',
                 padding: '6px 12px',
                 fontSize: '12px',
                 background: 'var(--animal-bg-color)',
@@ -220,7 +228,7 @@ export default function DashboardPage({ subscriptions }) {
                 color: 'var(--animal-text-color-secondary)',
               }}
             >
-              {ratesLoading ? '刷新中...' : '刷新'}
+              {ratesLoading ? '更新中...' : '更新'}
             </button>
           </div>
           <div style={itemStyle}>
@@ -241,16 +249,6 @@ export default function DashboardPage({ subscriptions }) {
               {exchangeRates.jpy ? `1 JPY = ${exchangeRates.jpy} CNY` : '未更新'}
             </span>
           </div>
-          {exchangeRates.lastUpdate && (
-            <div style={{
-              marginTop: '16px',
-              fontSize: '12px',
-              color: 'var(--animal-text-color-disabled)',
-              textAlign: 'center',
-            }}>
-              更新时间: {new Date(exchangeRates.lastUpdate).toLocaleString('zh-CN')}
-            </div>
-          )}
         </div>
       </div>
     </div>

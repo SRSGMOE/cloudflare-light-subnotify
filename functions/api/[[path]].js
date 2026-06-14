@@ -180,9 +180,12 @@ export async function onRequest(context) {
       }
       const nextDate = calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true);
       const notifyChannels = body.notify_channels || '[]';
+      const financeType = body.finance_type || 'none';
+      const financeAmount = body.finance_amount || '';
+      const financeCurrency = body.finance_currency || 'CNY';
       await env.DB.prepare(
-        'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date,notify_channels) VALUES (?,?,?,?,?,?,?,?,?)'
-      ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate, notifyChannels).run();
+        'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date,notify_channels,finance_type,finance_amount,finance_currency) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
+      ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate, notifyChannels, financeType, financeAmount, financeCurrency).run();
       return json({ success: true }, 201);
     }
     
@@ -206,6 +209,9 @@ export async function onRequest(context) {
         if (body.timezone !== undefined) { sql += ',timezone=?'; params.push(body.timezone); }
         if (body.is_active !== undefined) { sql += ',is_active=?'; params.push(body.is_active ? 1 : 0); }
         if (body.notify_channels !== undefined) { sql += ',notify_channels=?'; params.push(body.notify_channels); }
+        if (body.finance_type !== undefined) { sql += ',finance_type=?'; params.push(body.finance_type); }
+        if (body.finance_amount !== undefined) { sql += ',finance_amount=?'; params.push(body.finance_amount); }
+        if (body.finance_currency !== undefined) { sql += ',finance_currency=?'; params.push(body.finance_currency); }
         if (body.cycle_type) {
           sql += ',next_notify_date=?';
           params.push(calculateNextDate(body.cycle_type, body.cycle_value, body.cycle_hour + ':' + (body.cycle_minute || '00'), body.timezone, null, true));
@@ -253,8 +259,9 @@ export async function onRequest(context) {
       const message = '📢 ' + title + String.fromCharCode(10) + String.fromCharCode(10) + 
         '📦 订阅名称：示例订阅' + String.fromCharCode(10) +
         '🔖 订阅内容：这是订阅内容示例' + String.fromCharCode(10) +
-        '🌏 当前时区：北京时间 UTC+8' + String.fromCharCode(10) +
+        '💰 项目收支：支出 100 CNY' + String.fromCharCode(10) +
         '📮 通知周期：每周五 14:30' + String.fromCharCode(10) +
+        '🌏 当前时区：北京时间 UTC+8' + String.fromCharCode(10) +
         '📆 下次通知：2024-01-12 14:30';
       const res = await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
         method: 'POST',
@@ -499,17 +506,25 @@ export async function onRequest(context) {
           const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
           let cycleText = cycleLabels[sub.cycle_type] || sub.cycle_type;
           if (sub.cycle_type === 'weekly') cycleText += days[parseInt(sub.cycle_value)] || '';
-          if (sub.cycle_type === 'monthly') cycleText += sub.cycle_value + '日';
+          if (sub.cycle_type === 'monthly') cycleText += parseInt(sub.cycle_value) + '日';
           if (sub.cycle_type === 'yearly') {
             const parts = (sub.cycle_value || '1-1').split('-');
-            cycleText = '每年' + parts[0] + '月' + parts[1] + '日';
+            cycleText = '每年' + parts[0] + '月' + parseInt(parts[1]) + '日';
+          }
+          
+          // 构建收支信息
+          let financeText = '无';
+          if (sub.finance_type && sub.finance_type !== 'none' && sub.finance_amount) {
+            const financePrefix = sub.finance_type === 'expense' ? '支出' : '收入';
+            financeText = financePrefix + ' ' + sub.finance_amount + ' ' + (sub.finance_currency || 'CNY');
           }
           
           const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
             '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
             '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
-            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
+            '💰 项目收支：' + financeText + String.fromCharCode(10) +
             '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
+            '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
             '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
           
           // 发送通知
@@ -562,6 +577,9 @@ async function initDB(db) {
         timezone TEXT DEFAULT 'UTC',
         next_notify_date TEXT NOT NULL,
         notify_channels TEXT DEFAULT '[]',
+        finance_type TEXT DEFAULT 'none',
+        finance_amount TEXT DEFAULT '',
+        finance_currency TEXT DEFAULT 'CNY',
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         is_active INTEGER DEFAULT 1
@@ -573,6 +591,15 @@ async function initDB(db) {
       const columnNames = columns.map(c => c.name);
       if (!columnNames.includes('notify_channels')) {
         await db.prepare("ALTER TABLE subscriptions ADD COLUMN notify_channels TEXT DEFAULT '[]'").run();
+      }
+      if (!columnNames.includes('finance_type')) {
+        await db.prepare("ALTER TABLE subscriptions ADD COLUMN finance_type TEXT DEFAULT 'none'").run();
+      }
+      if (!columnNames.includes('finance_amount')) {
+        await db.prepare("ALTER TABLE subscriptions ADD COLUMN finance_amount TEXT DEFAULT ''").run();
+      }
+      if (!columnNames.includes('finance_currency')) {
+        await db.prepare("ALTER TABLE subscriptions ADD COLUMN finance_currency TEXT DEFAULT 'CNY'").run();
       }
     } catch (e) {}
     
