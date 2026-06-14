@@ -224,15 +224,25 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
     })
   }
 
+  // 获取订阅的通知途径显示（带图标，最多显示2个）
   const getNotifyChannelDisplay = (record) => {
     try {
       const channels = record.notify_channels ? JSON.parse(record.notify_channels) : []
       if (channels.length === 0) return '未设置'
-      const firstChannel = notifyChannels.find(c => c.key === channels[0])
-      if (!firstChannel) return '未设置'
-      const icon = firstChannel.icon || '📢'
-      const label = firstChannel.label
-      return channels.length === 1 ? `${icon} ${label}` : `${icon} ${label} ...`
+      
+      const displayChannels = channels.slice(0, 2).map(key => {
+        const channel = notifyChannels.find(c => c.key === key)
+        if (!channel) return null
+        return `${channel.icon || '📢'} ${channel.label}`
+      }).filter(Boolean)
+      
+      if (displayChannels.length === 0) return '未设置'
+      
+      if (channels.length <= 2) {
+        return displayChannels.join(' | ')
+      } else {
+        return displayChannels.join(' | ') + ' ⋯'
+      }
     } catch (e) { return '未设置' }
   }
 
@@ -249,7 +259,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
         </button>
       </div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px', marginBottom: '24px' }}>
         {subscriptions.map((record, index) => (
           <div 
             key={record.id} 
@@ -316,13 +326,17 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                 </div>
               </div>
               
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', borderTop: '1px solid var(--animal-border-color-light)', paddingTop: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--animal-border-color-light)', paddingTop: '16px' }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => handleEdit(record)}>
                   {currentTheme === 'animal-forest' ? <Icon item={1} size={14} /> : <span>✏️</span>}
                   编辑
                 </button>
                 <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}
-                  style={{ color: record.is_active ? 'var(--animal-warning-color)' : 'var(--animal-success-color)', borderColor: record.is_active ? 'var(--animal-warning-color)' : 'var(--animal-success-color)' }}>
+                  style={{ 
+                    color: record.is_active ? '#b45309' : 'var(--animal-success-color)', 
+                    borderColor: record.is_active ? '#b45309' : 'var(--animal-success-color)',
+                    background: record.is_active ? '#fef3c7' : 'transparent'
+                  }}>
                   {currentTheme === 'animal-forest' ? <Icon item={record.is_active ? 387 : 385} size={14} /> : <span>{record.is_active ? '⏹️' : '▶️'}</span>}
                   {record.is_active ? '停止' : '恢复'}
                 </button>

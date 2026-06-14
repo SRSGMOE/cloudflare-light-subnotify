@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
+import ConfirmModal from '../components/ConfirmModal.jsx'
 import { getNotifySettings, saveNotifySettings, getApiPaths, saveApiPaths } from '../api'
 
 export default function SystemSettingsPage({ showSuccess, showError }) {
@@ -12,6 +13,9 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
   
   // API 路径
   const [apiPaths, setApiPaths] = useState({ check_notifications: '', exchange_rate: '' })
+  
+  // 确认弹窗
+  const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, type: 'warning' })
 
   useEffect(() => { fetchSettings() }, [])
 
@@ -47,25 +51,31 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
     return result
   }
 
+  const hideConfirm = () => setConfirmModal({ ...confirmModal, visible: false })
+
   const handleGeneratePaths = async () => {
     const path = generateRandomPath()
     const newPaths = { check_notifications: path, exchange_rate: path }
     
-    // 弹窗确认
-    const confirmed = window.confirm(`确定生成新的API路径吗？
+    // 页内弹窗确认
+    setConfirmModal({
+      visible: true,
+      title: '确认生成新路径',
+      message: '确定生成新的API路径吗？
 
-新路径：${path}
+新路径：' + path + '
 
-注意：生成后旧路径将失效！`)
-    if (!confirmed) return
-    
-    setApiPaths(newPaths)
-    
-    // 确认后自动保存
-    try {
-      await saveApiPaths(newPaths)
-      showSuccess('API路径已生成并保存')
-    } catch (e) { showError('保存失败') }
+注意：生成后旧路径将失效！',
+      type: 'warning',
+      onConfirm: async () => {
+        setConfirmModal({ ...confirmModal, visible: false })
+        setApiPaths(newPaths)
+        try {
+          await saveApiPaths(newPaths)
+          showSuccess('API路径已生成并保存')
+        } catch (e) { showError('保存失败') }
+      }
+    })
   }
 
   const handleCopyPath = (type) => {
@@ -210,6 +220,16 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
           </div>
         </div>
       </div>
+
+      {/* 确认弹窗 */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={hideConfirm}
+        type={confirmModal.type}
+      />
     </div>
   )
 }
