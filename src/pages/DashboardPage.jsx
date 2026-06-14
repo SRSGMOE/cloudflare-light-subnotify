@@ -41,11 +41,15 @@ export default function DashboardPage({ subscriptions }) {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
 
+  // 从数据库加载汇率
   const loadExchangeRates = async () => {
     try {
       const data = await getExchangeRate()
       if (data.lastUpdate) {
         setExchangeRates(data)
+      } else {
+        // 数据库中没有汇率数据，自动刷新
+        await handleRefreshRates()
       }
     } catch (e) {
       console.error('加载汇率失败:', e)

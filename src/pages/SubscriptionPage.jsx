@@ -331,12 +331,7 @@ export default function SubscriptionPage({ subscriptions, onRefresh, showSuccess
                   {currentTheme === 'animal-forest' ? <Icon item={1} size={14} /> : <span>✏️</span>}
                   编辑
                 </button>
-                <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}
-                  style={{ 
-                    color: record.is_active ? '#ca8a04' : 'var(--animal-success-color)', 
-                    borderColor: record.is_active ? '#ca8a04' : 'var(--animal-success-color)',
-                    background: 'transparent'
-                  }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => handleToggle(record)}>
                   {currentTheme === 'animal-forest' ? <Icon item={record.is_active ? 387 : 385} size={14} /> : <span>{record.is_active ? '⏹️' : '▶️'}</span>}
                   {record.is_active ? '停止' : '恢复'}
                 </button>

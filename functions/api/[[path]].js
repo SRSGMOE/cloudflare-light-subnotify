@@ -62,16 +62,55 @@ export async function onRequest(context) {
       });
     }
     
-    // 汇率API - 不需要认证
+    // 汇率API - 不需要认证，直接获取最新汇率
     if (path === '/exchange-rate' && method === 'GET') {
       try {
-        const { results } = await env.DB.prepare(
-          "SELECT value FROM notify_settings WHERE key='exchange_rates'"
-        ).all();
-        if (results.length > 0) {
-          return json(JSON.parse(results[0].value));
+        // 直接获取最新汇率
+        let rates = { usd: null, eur: null, jpy: null };
+        
+        // API 1: frankfurter.app
+        try {
+          const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
+          if (response.ok) {
+            const data = await response.json();
+            if (data.rates) {
+              rates.usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : null;
+              rates.eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : null;
+              rates.jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : null;
+            }
+          }
+        } catch (e) {}
+        
+        // API 2: fawazahmed0
+        if (!rates.usd) {
+          try {
+            const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
+            if (response.ok) {
+              const data = await response.json();
+              if (data.cny) {
+                rates.usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : null;
+                rates.eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : null;
+                rates.jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : null;
+              }
+            }
+          } catch (e) {}
         }
-        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
+        
+        const result = {
+          usd: rates.usd,
+          eur: rates.eur,
+          jpy: rates.jpy,
+          lastUpdate: new Date().toISOString()
+        };
+        
+        // 更新数据库
+        if (rates.usd) {
+          await env.DB.prepare(
+            "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('exchange_rates', ?)"
+          ).bind(JSON.stringify(result)).run();
+        }
+        
+        return json(result);
       } catch (e) {
         return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
       }
