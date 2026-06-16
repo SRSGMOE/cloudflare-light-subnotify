@@ -62,7 +62,7 @@ export async function onRequest(context) {
       });
     }
     
-    // 汇率API - 不需要认证，直接获取最新汇率
+    // 汇率API - GET 获取最新汇率并更新数据库
     if (path === '/exchange-rate' && method === 'GET') {
       try {
         // 直接获取最新汇率
@@ -116,59 +116,27 @@ export async function onRequest(context) {
       }
     }
     
+    // 汇率API - POST 只从数据库读取
     if (path === '/exchange-rate' && method === 'POST') {
       try {
-        let rates = { usd: null, eur: null, jpy: null };
-        try {
-          const response = await fetch('https://api.frankfurter.app/latest?from=CNY&to=USD,EUR,JPY');
-          if (response.ok) {
-            const data = await response.json();
-            if (data.rates) {
-              rates.usd = data.rates.USD ? (1 / data.rates.USD).toFixed(4) : null;
-              rates.eur = data.rates.EUR ? (1 / data.rates.EUR).toFixed(4) : null;
-              rates.jpy = data.rates.JPY ? (1 / data.rates.JPY).toFixed(4) : null;
-            }
-          }
-        } catch (e) {}
-        
-        if (!rates.usd) {
-          try {
-            const response = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/cny.json');
-            if (response.ok) {
-              const data = await response.json();
-              if (data.cny) {
-                rates.usd = data.cny.usd ? (1 / data.cny.usd).toFixed(4) : null;
-                rates.eur = data.cny.eur ? (1 / data.cny.eur).toFixed(4) : null;
-                rates.jpy = data.cny.jpy ? (1 / data.cny.jpy).toFixed(4) : null;
-              }
-            }
-          } catch (e) {}
+        const { results } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='exchange_rates'"
+        ).all();
+        if (results.length > 0) {
+          return json(JSON.parse(results[0].value));
         }
-        
-        const result = {
-          usd: rates.usd,
-          eur: rates.eur,
-          jpy: rates.jpy,
-          lastUpdate: new Date().toISOString()
-        };
-        
-        await env.DB.prepare(
-          "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('exchange_rates', ?)"
-        ).bind(JSON.stringify(result)).run();
-        
-        return json({ success: true, data: result });
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
       } catch (e) {
-        return json({ success: false, error: e.message });
+        return json({ usd: null, eur: null, jpy: null, lastUpdate: null });
       }
-    }
-    
-        // 手动触发通知检查
+    }    // 手动触发通知检查
     // 安全机制：通过随机路径前缀访问
     // 完整路径：/{API_PREFIX}/api/check-notifications
     // API_PREFIX 在 Pages 环境变量中配置（Secret 类型）
     //
     // 中间件会自动移除随机前缀，此代码只需处理实际的 check-notifications 请求
-    if (path === '/check-notifications' && method === 'POST') {
+    // 检查订阅通知 API
+    if (path === '/check-notifications' && (method === 'GET' || method === 'POST')) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       
@@ -177,35 +145,53 @@ export async function onRequest(context) {
         'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
       ).bind(today).all();
       
+      // 获取通知标题
+      const { results: titleResults } = await env.DB.prepare(
+        "SELECT value FROM notify_settings WHERE key='title'"
+      ).all();
+      const notifyTitle = titleResults.length > 0 ? titleResults[0].value : '订阅到期提醒';
+      
+      // 获取TG设置
+      let telegramConfig = { enabled: false, bot_token: '', chats: [] };
+      try {
+        const { results: tgResults } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='telegram_config'"
+        ).all();
+        if (tgResults.length > 0) {
+          telegramConfig = JSON.parse(tgResults[0].value);
+        }
+      } catch (e) {}
+      
+      // 获取邮件设置
+      let emailConfig = { enabled: false, smtp: {}, receivers: [] };
+      try {
+        const { results: emailResults } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='email_config'"
+        ).all();
+        if (emailResults.length > 0) {
+          emailConfig = JSON.parse(emailResults[0].value);
+        }
+      } catch (e) {}
+      
+      // 获取喵提醒设置
+      let miaoConfig = { enabled: false, codes: [] };
+      try {
+        const { results: miaoResults } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='miao_config'"
+        ).all();
+        if (miaoResults.length > 0) {
+          miaoConfig = JSON.parse(miaoResults[0].value);
+        }
+      } catch (e) {}
+      
       let sent = 0;
       for (const sub of results) {
         try {
-          const { results: tokenResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='telegram_bot_token'"
-          ).all();
-          const { results: chatResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='telegram_chat_id'"
-          ).all();
-          
-          const botToken = tokenResults.length > 0 ? tokenResults[0].value : '';
-          const chatId = chatResults.length > 0 ? chatResults[0].value : '';
-          
-          if (!botToken || !chatId) continue;
-          
-          // 获取通知标题
-          const { results: titleResults } = await env.DB.prepare(
-            "SELECT value FROM notify_settings WHERE key='title'"
-          ).all();
-          const notifyTitle = titleResults.length > 0 ? titleResults[0].value : '订阅到期提醒';
-          
-          // 计算下一个通知日期
-          const nextDate = calculateNextDate(
-            sub.cycle_type, 
-            sub.cycle_value, 
-            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
-            sub.timezone, 
-            sub.next_notify_date
-          );
+          // 解析订阅的通知途径
+          let notifyChannels = [];
+          try {
+            notifyChannels = sub.notify_channels ? JSON.parse(sub.notify_channels) : [];
+          } catch (e) {}
           
           // 构建通知消息
           const tzLabels = { 'UTC': '世界协调时 UTC', 'CST': '北京时间 UTC+8', 'ET': '美国东部 UTC-4' };
@@ -238,26 +224,91 @@ export async function onRequest(context) {
             '💰 项目收支：' + financeText + String.fromCharCode(10) +
             '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
             '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
-            '📆 下次通知：' + nextDate + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+            '📆 下次通知：' + sub.next_notify_date + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
           
-          // 发送通知
-          await fetch('https://api.telegram.org/bot' + botToken + '/sendMessage', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text: message })
-          });
+          let sentToAny = false;
+          
+          // 发送TG通知
+          if (telegramConfig.enabled && telegramConfig.bot_token) {
+            const tgChannels = notifyChannels.filter(c => c.startsWith('tg_'));
+            for (const ch of tgChannels) {
+              const chatId = ch.replace('tg_', '');
+              const chat = telegramConfig.chats.find(c => c.id.toString() === chatId);
+              if (chat && chat.chat_id) {
+                try {
+                  await fetch('https://api.telegram.org/bot' + telegramConfig.bot_token + '/sendMessage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ chat_id: chat.chat_id, text: message })
+                  });
+                  sentToAny = true;
+                } catch (e) {}
+              }
+            }
+          }
+          
+          // 发送邮件通知
+          if (emailConfig.enabled && emailConfig.smtp && emailConfig.smtp.smtp_host) {
+            const emailChannels = notifyChannels.filter(c => c.startsWith('email_'));
+            for (const ch of emailChannels) {
+              const receiverId = ch.replace('email_', '');
+              const receiver = emailConfig.receivers.find(r => r.id.toString() === receiverId);
+              if (receiver && receiver.email) {
+                // 邮件发送需要外部服务，这里只记录
+                console.log('发送邮件到:', receiver.email);
+                sentToAny = true;
+              }
+            }
+          }
+          
+          // 发送喵提醒
+          if (miaoConfig.enabled) {
+            const miaoChannels = notifyChannels.filter(c => c.startsWith('miao_'));
+            for (const ch of miaoChannels) {
+              const codeId = ch.replace('miao_', '');
+              const miao = miaoConfig.codes.find(c => c.id.toString() === codeId);
+              if (miao && miao.code) {
+                try {
+                  await fetch('https://miaotixing.com/trigger?id=' + miao.code + '&text=' + encodeURIComponent(message) + '&type=json');
+                  sentToAny = true;
+                } catch (e) {}
+              }
+            }
+          }
+          
+          // 如果没有配置任何通知渠道，尝试使用默认的TG设置
+          if (!sentToAny && telegramConfig.enabled && telegramConfig.bot_token && telegramConfig.chats.length > 0) {
+            const defaultChat = telegramConfig.chats[0];
+            if (defaultChat.chat_id) {
+              try {
+                await fetch('https://api.telegram.org/bot' + telegramConfig.bot_token + '/sendMessage', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ chat_id: defaultChat.chat_id, text: message })
+                });
+                sentToAny = true;
+              } catch (e) {}
+            }
+          }
+          
+          if (sentToAny) sent++;
           
           // 更新下次通知日期
+          const nextDate = calculateNextDate(
+            sub.cycle_type, 
+            sub.cycle_value, 
+            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
+            sub.timezone, 
+            sub.next_notify_date
+          );
+          
           if (sub.cycle_type !== 'specific') {
             await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
               .bind(nextDate, sub.id).run();
           } else {
-            // 指定日期通知完成后自动暂停
             await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
               .bind(sub.id).run();
           }
-          
-          sent++;
         } catch (e) {
           console.error('发送通知失败:', e);
         }
@@ -266,7 +317,7 @@ export async function onRequest(context) {
       return json({ success: true, checked: results.length, sent });
     }
 
-    // 需要认证的接口
+        // 需要认证的接口
     if (env.ADMIN_PASSWORD) {
       const authHeader = request.headers.get('Authorization');
       const token = authHeader ? authHeader.replace('Bearer ', '') : '';

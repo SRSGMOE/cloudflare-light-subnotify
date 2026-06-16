@@ -45,12 +45,7 @@ export default function DashboardPage({ subscriptions }) {
   const loadExchangeRates = async () => {
     try {
       const data = await getExchangeRate()
-      if (data.lastUpdate) {
-        setExchangeRates(data)
-      } else {
-        // 数据库中没有汇率数据，自动刷新
-        await handleRefreshRates()
-      }
+      setExchangeRates(data)
     } catch (e) {
       console.error('加载汇率失败:', e)
     }

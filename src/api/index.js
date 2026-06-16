@@ -137,14 +137,14 @@ export async function testMiao(data) {
 }
 
 export async function getExchangeRate() {
-  const response = await fetchApi('/exchange-rate')
+  const response = await fetchApi('/exchange-rate', {
+    method: 'POST',
+  })
   return response.json()
 }
 
 export async function refreshExchangeRate() {
-  const response = await fetchApi('/exchange-rate', {
-    method: 'POST',
-  })
+  const response = await fetchApi('/exchange-rate')
   return response.json()
 }
 
