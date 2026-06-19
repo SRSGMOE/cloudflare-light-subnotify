@@ -62,8 +62,8 @@ export async function onRequest(context) {
       });
     }
     
-    // 汇率API - GET 获取最新汇率并更新数据库
-    if (path === '/exchange-rate' && method === 'GET') {
+    // 汇率API - POST 触发更新汇率并写入数据库
+    if (path === '/exchange-rate' && method === 'POST') {
       try {
         // 直接获取最新汇率
         let rates = { usd: null, eur: null, jpy: null };
@@ -116,8 +116,8 @@ export async function onRequest(context) {
       }
     }
     
-    // 汇率API - POST 只从数据库读取
-    if (path === '/exchange-rate' && method === 'POST') {
+    // 汇率API - GET 从数据库读取
+    if (path === '/exchange-rate' && method === 'GET') {
       try {
         const { results } = await env.DB.prepare(
           "SELECT value FROM notify_settings WHERE key='exchange_rates'"
@@ -136,7 +136,7 @@ export async function onRequest(context) {
     //
     // 中间件会自动移除随机前缀，此代码只需处理实际的 check-notifications 请求
     // 检查订阅通知 API
-    if (path === '/check-notifications' && (method === 'GET' || method === 'POST')) {
+    if (path === '/check-notifications' && method === 'POST') {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       
@@ -441,6 +441,7 @@ export async function onRequest(context) {
       await env.DB.prepare(
         'INSERT INTO subscriptions (name,content,cycle_type,cycle_value,cycle_hour,cycle_minute,timezone,next_notify_date,notify_channels,finance_type,finance_amount,finance_currency) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)'
       ).bind(body.name, body.content, body.cycle_type, body.cycle_value || '', body.cycle_hour || '09', body.cycle_minute || '00', body.timezone || 'UTC', nextDate, notifyChannels, financeType, financeAmount, financeCurrency).run();
+      await logOperation(env.DB, '创建订阅', '创建订阅: ' + body.name);
       return json({ success: true }, 201);
     }
     
@@ -478,6 +479,7 @@ export async function onRequest(context) {
       }
       if (method === 'DELETE') {
         await env.DB.prepare('DELETE FROM subscriptions WHERE id=?').bind(id).run();
+        await logOperation(env.DB, '删除订阅', '删除订阅ID: ' + id);
         return json({ success: true });
       }
     }
@@ -636,6 +638,41 @@ export async function onRequest(context) {
         "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('api_paths', ?)"
       ).bind(JSON.stringify(body)).run();
       return json({ success: true });
+    }
+    
+    // CORS 设置
+    if (path === '/cors-settings' && method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT value FROM notify_settings WHERE key='cors_settings'"
+        ).all();
+        if (results.length > 0) {
+          return json(JSON.parse(results[0].value));
+        }
+        return json({ allowed_origins: '*' });
+      } catch (e) {
+        return json({ allowed_origins: '*' });
+      }
+    }
+    
+    if (path === '/cors-settings' && method === 'POST') {
+      const body = await request.json();
+      await env.DB.prepare(
+        "INSERT OR REPLACE INTO notify_settings (key, value) VALUES ('cors_settings', ?)"
+      ).bind(JSON.stringify(body)).run();
+      return json({ success: true });
+    }
+    
+    // 操作日志
+    if (path === '/operation-logs' && method === 'GET') {
+      try {
+        const { results } = await env.DB.prepare(
+          "SELECT * FROM operation_logs ORDER BY created_at DESC LIMIT 10"
+        ).all();
+        return json(results);
+      } catch (e) {
+        return json([]);
+      }
     }
     
 

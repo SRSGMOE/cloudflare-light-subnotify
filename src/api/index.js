@@ -138,13 +138,15 @@ export async function testMiao(data) {
 
 export async function getExchangeRate() {
   const response = await fetchApi('/exchange-rate', {
-    method: 'POST',
+    method: 'GET',
   })
   return response.json()
 }
 
 export async function refreshExchangeRate() {
-  const response = await fetchApi('/exchange-rate')
+  const response = await fetchApi('/exchange-rate', {
+    method: 'POST',
+  })
   return response.json()
 }
 
@@ -158,6 +160,24 @@ export async function saveApiPaths(data) {
     method: 'POST',
     body: JSON.stringify(data),
   })
+  return response.json()
+}
+
+export async function getCorsSettings() {
+  const response = await fetchApi('/cors-settings')
+  return response.json()
+}
+
+export async function saveCorsSettings(data) {
+  const response = await fetchApi('/cors-settings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+  return response.json()
+}
+
+export async function getOperationLogs() {
+  const response = await fetchApi('/operation-logs')
   return response.json()
 }
 

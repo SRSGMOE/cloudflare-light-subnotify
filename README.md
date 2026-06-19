@@ -243,14 +243,137 @@ npm run build
 | `/api/notify-settings` | POST | 保存通知标题设置 | ✅ |
 | `/api/api-paths` | GET | 获取 API 路径设置 | ✅ |
 | `/api/api-paths` | POST | 保存 API 路径设置 | ✅ |
-| `/api/exchange-rate` | GET | 获取汇率 | ✅ |
-| `/api/exchange-rate` | POST | 刷新汇率 | ✅ |
+| `/api/exchange-rate` | GET | 从数据库读取汇率 | ❌ |
+| `/api/exchange-rate` | POST | 触发汇率更新并写入数据库 | ❌ |
 
-### 定时任务
+### 通知检查
 
 | 接口 | 方法 | 说明 | 认证 |
 |------|------|------|------|
-| `/api/check-notifications` | POST | 触发通知检查 | 🔒 |
+| `/api/check-notifications` | POST | 触发通知检查 | ❌ |
+
+### 系统配置
+
+| 接口 | 方法 | 说明 | 认证 |
+|------|------|------|------|
+| `/api/cors-settings` | GET | 获取CORS配置 | ✅ |
+| `/api/cors-settings` | POST | 保存CORS配置 | ✅ |
+| `/api/operation-logs` | GET | 获取操作日志 | ✅ |
+
+## ⏰ 定时任务配置
+
+### 方案1：Cloudflare Worker（推荐）
+
+创建独立的 Worker 来定时调用 API。
+
+#### 1. 创建 Worker 项目
+
+```bash
+mkdir subnotify-scheduler
+cd subnotify-scheduler
+```
+
+#### 2. 创建 worker.js
+
+```javascript
+export default {
+  async scheduled(event, env, ctx) {
+    const API_URL = env.API_URL;
+    if (!API_URL) return;
+    
+    try {
+      // 触发通知检查
+      await fetch(API_URL + '/api/check-notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      // 触发汇率更新
+      await fetch(API_URL + '/api/exchange-rate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      console.log('定时任务执行完成');
+    } catch (error) {
+      console.error('定时任务失败:', error);
+    }
+  }
+};
+```
+
+#### 3. 创建 wrangler.toml
+
+```toml
+name = "subnotify-scheduler"
+main = "worker.js"
+compatibility_date = "2024-12-01"
+
+[triggers]
+crons = ["0 0 * * *"]  # 每天UTC 0点
+
+[vars]
+API_URL = "https://你的域名.pages.dev"
+```
+
+#### 4. 部署
+
+```bash
+npm install -g wrangler
+wrangler login
+wrangler deploy
+```
+
+### 方案2：青龙面板
+
+1. 登录青龙面板
+2. 进入 **定时任务** → **新建任务**
+3. 创建两个任务：
+
+**通知检查任务：**
+```
+名称: 订阅通知检查
+命令: curl -X POST https://你的域名/pages.dev/api/check-notifications
+定时规则: 0 */10 * * * (每10分钟)
+```
+
+**汇率更新任务：**
+```
+名称: 汇率更新
+命令: curl -X POST https://你的域名.pages.dev/api/exchange-rate
+定时规则: 0 0 * * * (每天UTC 0点)
+```
+
+### 方案3：GitHub Actions
+
+在 GitHub 仓库中创建 `.github/workflows/scheduled-tasks.yml`：
+
+```yaml
+name: Scheduled Tasks
+
+on:
+  schedule:
+    # 每天UTC 0点更新汇率
+    - cron: '0 0 * * *'
+    # 每10分钟检查通知
+    - cron: '*/10 * * * *'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  check-notifications:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger notification check
+        run: |
+          curl -X POST https://你的域名.pages.dev/api/check-notifications
+
+  update-exchange-rate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger exchange rate update
+        run: |
+          curl -X POST https://你的域名.pages.dev/api/exchange-rate
+```
 
 ## 🗄️ 数据库结构
 
@@ -283,51 +406,6 @@ npm run build
 | key | TEXT | 设置键名 |
 | value | TEXT | 设置值 |
 
-## ⏰ 定时通知配置
-
-Cloudflare Pages Functions 不支持定时任务，需要通过外部服务触发。
-
-### 方案1：使用独立 Worker（推荐）
-
-```javascript
-export default {
-  async scheduled(event, env, ctx) {
-    const API_URL = env.API_URL;
-    if (!API_URL) return;
-    
-    const response = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    
-    const result = await response.json();
-    console.log('Result:', result);
-  }
-};
-```
-
-### 方案2：使用青龙面板
-
-```bash
-curl -X POST https://你的域名/随机路径/api/check-notifications
-```
-
-### 方案3：使用 UptimeRobot
-
-- URL: `https://你的域名/随机路径/api/check-notifications`
-- Method: `POST`
-- 间隔: 10 分钟
-
-### 汇率刷新
-
-调用 API 刷新汇率：
-
-```bash
-curl -X POST https://你的域名/随机路径/api/exchange-rate
-```
-
-建议每天 UTC 0 点调用一次。
-
 ## 🔒 安全机制
 
 ### 管理员认证
@@ -348,6 +426,27 @@ curl -X POST https://你的域名/随机路径/api/exchange-rate
 - 防止命令被滥用
 
 ## 📝 更新日志
+
+### v2.5.0
+
+- ✅ CORS 跨域配置（系统设置中配置）
+- ✅ 操作日志记录功能（数据表盘中显示）
+- ✅ 数据表盘四列布局（时钟/统计/汇率/日志）
+- ✅ 操作日志自动保留最近50条记录
+
+### v2.4.0
+
+- ✅ check-notifications 只支持 POST
+- ✅ exchange-rate POST 触发更新，GET 读取数据库
+- ✅ 完善定时任务配置说明
+- ✅ 新增 Cloudflare Worker / 青龙面板 / GitHub Actions 三种方案
+
+### v2.3.0
+
+- ✅ 多渠道通知支持（TG Bot、邮件、喵提醒）
+- ✅ 订阅通知根据 notify_channels 字段选择通知渠道
+- ✅ 修复中件间路由匹配问题
+- ✅ 优化汇率更新逻辑
 
 ### v2.2.0
 

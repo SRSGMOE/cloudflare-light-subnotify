@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
-import { getExchangeRate, refreshExchangeRate } from '../api'
+import { getExchangeRate, refreshExchangeRate, getOperationLogs } from '../api'
 
 export default function DashboardPage({ subscriptions }) {
   const { currentTheme } = useTheme()
@@ -15,11 +15,13 @@ export default function DashboardPage({ subscriptions }) {
     lastUpdate: null
   })
   const [ratesLoading, setRatesLoading] = useState(false)
+  const [operationLogs, setOperationLogs] = useState([])
 
   useEffect(() => {
     updateTime()
     const timer = setInterval(updateTime, 1000)
     loadExchangeRates()
+    loadOperationLogs()
     return () => clearInterval(timer)
   }, [])
 
@@ -41,7 +43,6 @@ export default function DashboardPage({ subscriptions }) {
     return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
 
-  // 从数据库加载汇率
   const loadExchangeRates = async () => {
     try {
       const data = await getExchangeRate()
@@ -62,6 +63,15 @@ export default function DashboardPage({ subscriptions }) {
       console.error('刷新汇率失败:', e)
     }
     setRatesLoading(false)
+  }
+
+  const loadOperationLogs = async () => {
+    try {
+      const data = await getOperationLogs()
+      setOperationLogs(data)
+    } catch (e) {
+      console.error('加载操作日志失败:', e)
+    }
   }
 
   const active = subscriptions.filter(s => s.is_active)
@@ -138,10 +148,10 @@ export default function DashboardPage({ subscriptions }) {
         </div>
       </div>
       
-      {/* 三列卡片布局 */}
+      {/* 四列卡片布局 */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
+        gridTemplateColumns: 'repeat(4, 1fr)',
         gap: '24px',
         marginBottom: '24px',
       }} className="dashboard-cards">
@@ -247,6 +257,83 @@ export default function DashboardPage({ subscriptions }) {
             <span style={itemValueStyle}>
               {exchangeRates.jpy ? `1 JPY = ${exchangeRates.jpy} CNY` : '未更新'}
             </span>
+          </div>
+        </div>
+        
+        {/* 操作日志卡片 */}
+        <div style={cardStyle}>
+          <div style={cardTitleStyle}>
+            {currentTheme === 'animal-forest' ? (
+              <Icon name="icon-diy" size={24} />
+            ) : (
+              <span style={{ fontSize: '20px' }}>📝</span>
+            )}
+            操作日志
+            <button 
+              onClick={loadOperationLogs}
+              style={{
+                marginLeft: 'auto',
+                padding: '6px 12px',
+                fontSize: '12px',
+                background: 'var(--animal-bg-color)',
+                border: '1px solid var(--animal-border-color)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                color: 'var(--animal-text-color-secondary)',
+              }}
+            >
+              刷新
+            </button>
+          </div>
+          <div style={{ 
+            maxHeight: '200px', 
+            overflowY: 'auto',
+            fontSize: '13px',
+            color: 'var(--animal-text-color)',
+          }}>
+            {operationLogs.length > 0 ? (
+              operationLogs.map((log, index) => (
+                <div key={log.id} style={{
+                  padding: '8px 0',
+                  borderBottom: index < operationLogs.length - 1 ? '1px solid var(--animal-border-color-light)' : 'none',
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    marginBottom: '4px',
+                  }}>
+                    <span style={{ fontWeight: 600, color: 'var(--animal-primary-color)' }}>
+                      {log.action}
+                    </span>
+                    <span style={{ 
+                      fontSize: '11px', 
+                      color: 'var(--animal-text-color-disabled)',
+                      fontFamily: 'monospace',
+                    }}>
+                      {new Date(log.created_at).toLocaleString('zh-CN')}
+                    </span>
+                  </div>
+                  <div style={{ 
+                    fontSize: '12px', 
+                    color: 'var(--animal-text-color-secondary)',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}>
+                    {log.detail}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ 
+                textAlign: 'center', 
+                padding: '20px', 
+                color: 'var(--animal-text-color-disabled)',
+                fontSize: '13px',
+              }}>
+                暂无操作记录
+              </div>
+            )}
           </div>
         </div>
       </div>

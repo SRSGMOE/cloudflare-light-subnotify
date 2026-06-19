@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Icon } from 'animal-island-ui'
 import { useTheme } from '../context/ThemeContext.jsx'
 import ConfirmModal from '../components/ConfirmModal.jsx'
-import { getNotifySettings, saveNotifySettings, getApiPaths, saveApiPaths } from '../api'
+import { getNotifySettings, saveNotifySettings, getApiPaths, saveApiPaths, getCorsSettings, saveCorsSettings } from '../api'
 
 export default function SystemSettingsPage({ showSuccess, showError }) {
   const { currentTheme } = useTheme()
@@ -10,16 +10,25 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
   const [notifySettings, setNotifySettings] = useState({ title: '订阅到期提醒' })
   const [notifyLoading, setNotifyLoading] = useState(false)
   const [apiPaths, setApiPaths] = useState({ check_notifications: '', exchange_rate: '' })
+  const [corsSettings, setCorsSettings] = useState({ allowed_origins: '*' })
+  const [corsLoading, setCorsLoading] = useState(false)
   const [confirmModal, setConfirmModal] = useState({ visible: false, title: '', message: '', onConfirm: null, type: 'warning' })
 
   useEffect(() => { fetchSettings() }, [])
 
   const fetchSettings = async () => {
     try {
-      const [notify, paths] = await Promise.all([getNotifySettings(), getApiPaths()])
+      const [notify, paths, cors] = await Promise.all([
+        getNotifySettings(),
+        getApiPaths(),
+        getCorsSettings()
+      ])
       setNotifySettings(notify)
       if (paths.check_notifications || paths.exchange_rate) {
         setApiPaths(paths)
+      }
+      if (cors.allowed_origins) {
+        setCorsSettings(cors)
       }
     } catch (e) {}
   }
@@ -31,6 +40,15 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
       showSuccess('通知标题已保存')
     } catch (e) { showError('保存失败') }
     setNotifyLoading(false)
+  }
+
+  const handleSaveCors = async () => {
+    setCorsLoading(true)
+    try {
+      await saveCorsSettings(corsSettings)
+      showSuccess('CORS配置已保存')
+    } catch (e) { showError('保存失败') }
+    setCorsLoading(false)
   }
 
   const generateRandomPath = () => {
@@ -91,6 +109,44 @@ export default function SystemSettingsPage({ showSuccess, showError }) {
       </h2>
 
       <div style={{ maxWidth: '40%', width: '100%', display: 'flex', flexDirection: 'column', gap: '24px' }} className="settings-container">
+
+        {/* CORS 配置 */}
+        <div className="card">
+          <div className="card-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--animal-text-color)', margin: 0 }}>CORS 跨域配置</h3>
+            <button className="btn btn-primary btn-sm" onClick={handleSaveCors} disabled={corsLoading}>
+              {corsLoading ? '保存中...' : '保存设置'}
+            </button>
+          </div>
+          <div className="card-body">
+            <div className="form-group">
+              <label className="form-label">允许的来源域名</label>
+              <input
+                className="input"
+                value={corsSettings.allowed_origins}
+                onChange={(e) => setCorsSettings({...corsSettings, allowed_origins: e.target.value})}
+                placeholder="* 或 https://yourdomain.com"
+              />
+            </div>
+            <div style={{ 
+              background: 'var(--animal-bg-color)', 
+              padding: '16px', 
+              borderRadius: 'var(--animal-border-radius-sm)', 
+              fontSize: '13px', 
+              color: 'var(--animal-text-color-secondary)',
+              marginTop: '8px',
+              lineHeight: '1.6'
+            }}>
+              <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: 'var(--animal-text-color)' }}>💡 使用说明</p>
+              <p style={{ margin: '0 0 8px 0' }}><strong>*</strong> - 允许所有来源访问（默认值，适合大多数场景）</p>
+              <p style={{ margin: '0 0 8px 0' }}><strong>https://yourdomain.com</strong> - 只允许指定域名访问</p>
+              <p style={{ margin: '0 0 8px 0' }}><strong>多个域名</strong> - 用逗号分隔，如：https://a.com, https://b.com</p>
+              <p style={{ margin: '8px 0 0 0', padding: '8px', background: '#fff3cd', borderRadius: '8px', color: '#856404' }}>
+                ⚠️ 非专业人员建议保持默认值 <strong>*</strong>，修改后可能导致前端无法访问API
+              </p>
+            </div>
+          </div>
+        </div>
 
         {/* API 路径设置 */}
         <div className="card">
