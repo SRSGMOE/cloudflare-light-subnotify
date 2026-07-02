@@ -254,7 +254,7 @@ export async function onRequest(context) {
             weekly: '每周',
             monthly: '每月',
             yearly: '每年',
-            specific: sub.cycle_value,
+            specific: '单次通知',
           };
           const days = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日'];
           let cycleText = cycleLabels[sub.cycle_type] || sub.cycle_type;
@@ -272,13 +272,19 @@ export async function onRequest(context) {
             financeText = financePrefix + ' ' + sub.finance_amount + ' ' + (sub.finance_currency || 'CNY');
           }
           
+          // 确定下次通知显示内容
+          let nextNotifyText = sub.next_notify_date + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+          if (sub.cycle_type === 'specific') {
+            nextNotifyText = '已完成通知，通知停止';
+          }
+          
           const message = '📢 ' + notifyTitle + String.fromCharCode(10) + String.fromCharCode(10) +
             '📦 订阅名称：' + sub.name + String.fromCharCode(10) +
             '🔖 订阅内容：' + sub.content + String.fromCharCode(10) +
             '💰 项目收支：' + financeText + String.fromCharCode(10) +
             '📮 通知周期：' + cycleText + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00') + String.fromCharCode(10) +
             '🌏 当前时区：' + (tzLabels[sub.timezone] || sub.timezone) + String.fromCharCode(10) +
-            '📆 下次通知：' + sub.next_notify_date + ' ' + (sub.cycle_hour || '09') + ':' + (sub.cycle_minute || '00');
+            '📆 下次通知：' + nextNotifyText;
           
           let sentToAny = false;
           
@@ -356,17 +362,23 @@ export async function onRequest(context) {
           if (sentToAny) sent++;
           
           // 更新下次通知日期
-          const nextDate = calculateNextDate(
-            sub.cycle_type, 
-            sub.cycle_value, 
-            sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
-            sub.timezone, 
-            sub.next_notify_date
-          );
-          
-          if (sub.cycle_type !== 'specific') {
+          if (sub.cycle_type === 'specific') {
+            // 指定日期为单次通知，发送后自动停止
+            await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
+              .bind(sub.id).run();
+            console.log('指定日期通知已发送，订阅自动停止:', sub.name);
+          } else {
+            // 其他类型计算下次通知日期
+            const nextDate = calculateNextDate(
+              sub.cycle_type, 
+              sub.cycle_value, 
+              sub.cycle_hour + ':' + (sub.cycle_minute || '00'), 
+              sub.timezone, 
+              sub.next_notify_date
+            );
             await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
               .bind(nextDate, sub.id).run();
+            console.log('下次通知日期已更新:', sub.name, '->', nextDate);
           } else {
             await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
               .bind(sub.id).run();
@@ -809,6 +821,7 @@ function generateToken(password) {
 
 // 计算下次通知日期
 function calculateNextDate(type, value, hour, timezone, currentDate, isNew) {
+  // 解析时间
   hour = hour || '09';
   let minute = '00';
   if (hour && hour.includes(':')) {
@@ -816,9 +829,13 @@ function calculateNextDate(type, value, hour, timezone, currentDate, isNew) {
     hour = parts[0];
     minute = parts[1] || '00';
   }
+  
+  // 时区设置
   timezone = timezone || 'UTC';
   const offsets = { 'UTC': 0, 'CST': 8, 'ET': -4 };
   const offset = offsets[timezone] || 0;
+  
+  // 获取当前本地时间
   const now = new Date();
   const localNow = new Date(now.getTime() + offset * 3600000);
   const localYear = localNow.getUTCFullYear();
@@ -826,6 +843,8 @@ function calculateNextDate(type, value, hour, timezone, currentDate, isNew) {
   const localDay = localNow.getUTCDate();
   const currentHour = localNow.getUTCHours();
   const currentMinute = localNow.getUTCMinutes();
+  
+  // 获取当前日期或传入的日期
   let year, month, day;
   if (currentDate) {
     const dateParts = currentDate.split('-');
@@ -837,40 +856,66 @@ function calculateNextDate(type, value, hour, timezone, currentDate, isNew) {
     month = localMonth;
     day = localDay;
   }
-  let next = new Date(Date.UTC(year, month, day, parseInt(hour), parseInt(minute), 0));
-  const currentTotalMinutes = currentHour * 60 + currentMinute;
-  const targetTotalMinutes = parseInt(hour) * 60 + parseInt(minute);
+  
+  // 如果是新建订阅且今天还没到时间，返回今天的日期
   if (isNew) {
     const isToday = (year === localYear && month === localMonth && day === localDay);
+    const targetTotalMinutes = parseInt(hour) * 60 + parseInt(minute);
+    const currentTotalMinutes = currentHour * 60 + currentMinute;
     if (isToday && targetTotalMinutes > currentTotalMinutes) {
       return year + '-' + String(month + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
     }
   }
+  
+  // 根据周期类型计算下次通知日期
+  let next;
   switch (type) {
     case 'daily':
-      next.setUTCDate(next.getUTCDate() + 1);
+      // 每日：下一天同一时间
+      next = new Date(year, month, day + 1, parseInt(hour), parseInt(minute));
       break;
+      
     case 'weekly':
-      const targetDay = parseInt(value) || 1;
-      const currentDay = next.getUTCDay() === 0 ? 7 : next.getUTCDay();
-      let daysToAdd = (targetDay - currentDay + 7) % 7;
-      if (daysToAdd === 0) daysToAdd = 7;
-      next.setUTCDate(next.getUTCDate() + daysToAdd);
+      // 每周：下一个指定星期几
+      const targetDayOfWeek = parseInt(value) || 1; // 1=周一, 7=周日
+      next = new Date(year, month, day, parseInt(hour), parseInt(minute));
+      const currentDayOfWeek = next.getDay() === 0 ? 7 : next.getDay();
+      let daysToAdd = (targetDayOfWeek - currentDayOfWeek + 7) % 7;
+      if (daysToAdd === 0) daysToAdd = 7; // 如果是同一天，跳到下周
+      next.setDate(next.getDate() + daysToAdd);
       break;
+      
     case 'monthly':
+      // 每月：下一个指定日期
       const targetDate = Math.min(parseInt(value) || day, 28);
-      next.setUTCDate(targetDate);
-      if (next <= now) next.setUTCMonth(next.getUTCMonth() + 1);
+      next = new Date(year, month, targetDate, parseInt(hour), parseInt(minute));
+      if (next <= now) {
+        next.setMonth(next.getMonth() + 1);
+      }
       break;
+      
     case 'yearly':
+      // 每年：下一个指定月日
       const parts = (value || '1-1').split('-');
       const targetMonth = parseInt(parts[0]) || 1;
       const targetDayY = Math.min(parseInt(parts[1]) || 1, 28);
-      next.setUTCMonth(targetMonth - 1, targetDayY);
-      if (next <= now) next.setUTCFullYear(next.getUTCFullYear() + 1);
+      next = new Date(year, targetMonth - 1, targetDayY, parseInt(hour), parseInt(minute));
+      if (next <= now) {
+        next.setFullYear(next.getFullYear() + 1);
+      }
       break;
+      
     case 'specific':
+      // 指定日期：单次通知
       return currentDate || value;
+      
+    default:
+      // 默认明天
+      next = new Date(year, month, day + 1, parseInt(hour), parseInt(minute));
   }
-  return next.getUTCFullYear() + '-' + String(next.getUTCMonth() + 1).padStart(2, '0') + '-' + String(next.getUTCDate()).padStart(2, '0');
+  
+  // 格式化日期为 YYYY-MM-DD
+  return next.getFullYear() + '-' + 
+         String(next.getMonth() + 1).padStart(2, '0') + '-' + 
+         String(next.getDate()).padStart(2, '0');
 }
