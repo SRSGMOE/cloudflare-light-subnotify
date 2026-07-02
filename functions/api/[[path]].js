@@ -154,14 +154,19 @@ export async function onRequest(context) {
       
       // 过滤出真正到期的订阅
       const results = allSubs.filter(sub => {
-        // 比较日期
-        if (sub.next_notify_date > today) return false;
-        if (sub.next_notify_date < today) return true;
-        
-        // 日期相同时，需要比较时间
         // 获取订阅的时区偏移量
         const timezone = sub.timezone || 'UTC';
         const offset = timezoneOffsets[timezone] || 0;
+        
+        // 计算当前时间在订阅时区的本地日期
+        const localNow = new Date(now.getTime() + offset * 3600000);
+        const todayLocal = localNow.toISOString().split('T')[0];
+        
+        // 比较日期（使用本地日期）
+        if (sub.next_notify_date > todayLocal) return false;
+        if (sub.next_notify_date < todayLocal) return true;
+        
+        // 日期相同时，需要比较时间
         
         // 订阅的本地时间
         const subHour = parseInt(sub.cycle_hour || '09', 10);
@@ -177,24 +182,17 @@ export async function onRequest(context) {
         // 处理跨日情况
         if (subUTCHour < 0) {
           // 转换后是前一天的 UTC 时间
-          // 例如：美国东部 02:00 (UTC-4) = UTC 06:00 (前一天)
+          // 例如：北京时间 01:00 (UTC+8) = UTC 17:00 (前一天)
           subUTCHour += 24;
-          // 还没到，不发送
-          return false;
         }
         
         if (subUTCHour >= 24) {
           // 转换后是后一天的 UTC 时间
           // 例如：美国东部 23:10 (UTC-4) = UTC 03:10 (后一天)
           subUTCHour -= 24;
-          // 比较时间
-          const subTotalMinutes = subUTCHour * 60 + subMinute;
-          const currentTotalMinutes = currentUTCHour * 60 + currentUTCMinute;
-          // 只有当前时间大于等于订阅时间才发送
-          return subTotalMinutes <= currentTotalMinutes;
         }
         
-        // 正常情况，比较 UTC 时间
+        // 比较 UTC 时间
         const subTotalMinutes = subUTCHour * 60 + subMinute;
         const currentTotalMinutes = currentUTCHour * 60 + currentUTCMinute;
         
