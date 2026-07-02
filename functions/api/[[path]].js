@@ -140,15 +140,17 @@ export async function onRequest(context) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       
-      // 获取所有到期的订阅（比较日期和时间）
-      const currentHour = String(now.getUTCHours()).padStart(2, '0');
-      const currentMinute = String(now.getUTCMinutes()).padStart(2, '0');
-      const currentTime = currentHour + ':' + currentMinute;
-      
       // 获取所有活跃订阅
       const { results: allSubs } = await env.DB.prepare(
         'SELECT * FROM subscriptions WHERE is_active=1'
       ).all();
+      
+      // 时区偏移量映射（相对于UTC的小时数）
+      const timezoneOffsets = {
+        'UTC': 0,
+        'CST': 8,   // 北京时间 UTC+8
+        'ET': -4    // 美国东部 UTC-4
+      };
       
       // 过滤出真正到期的订阅
       const results = allSubs.filter(sub => {
@@ -156,12 +158,47 @@ export async function onRequest(context) {
         if (sub.next_notify_date > today) return false;
         if (sub.next_notify_date < today) return true;
         
-        // 日期相同时，比较时间
-        const subHour = sub.cycle_hour || '09';
-        const subMinute = sub.cycle_minute || '00';
-        const subTime = subHour.padStart(2, '0') + ':' + subMinute.padStart(2, '0');
+        // 日期相同时，需要比较时间
+        // 获取订阅的时区偏移量
+        const timezone = sub.timezone || 'UTC';
+        const offset = timezoneOffsets[timezone] || 0;
         
-        return subTime <= currentTime;
+        // 订阅的本地时间
+        const subHour = parseInt(sub.cycle_hour || '09', 10);
+        const subMinute = parseInt(sub.cycle_minute || '00', 10);
+        
+        // 将订阅的本地时间转换为 UTC 时间
+        let subUTCHour = subHour - offset;
+        
+        // 获取当前 UTC 时间
+        const currentUTCHour = now.getUTCHours();
+        const currentUTCMinute = now.getUTCMinutes();
+        
+        // 处理跨日情况
+        if (subUTCHour < 0) {
+          // 转换后是前一天的 UTC 时间
+          // 例如：美国东部 02:00 (UTC-4) = UTC 06:00 (前一天)
+          subUTCHour += 24;
+          // 还没到，不发送
+          return false;
+        }
+        
+        if (subUTCHour >= 24) {
+          // 转换后是后一天的 UTC 时间
+          // 例如：美国东部 23:10 (UTC-4) = UTC 03:10 (后一天)
+          subUTCHour -= 24;
+          // 比较时间
+          const subTotalMinutes = subUTCHour * 60 + subMinute;
+          const currentTotalMinutes = currentUTCHour * 60 + currentUTCMinute;
+          // 只有当前时间大于等于订阅时间才发送
+          return subTotalMinutes <= currentTotalMinutes;
+        }
+        
+        // 正常情况，比较 UTC 时间
+        const subTotalMinutes = subUTCHour * 60 + subMinute;
+        const currentTotalMinutes = currentUTCHour * 60 + currentUTCMinute;
+        
+        return subTotalMinutes <= currentTotalMinutes;
       });
       
       // 获取通知标题
