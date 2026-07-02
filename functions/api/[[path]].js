@@ -379,9 +379,6 @@ export async function onRequest(context) {
             await env.DB.prepare('UPDATE subscriptions SET next_notify_date=? WHERE id=?')
               .bind(nextDate, sub.id).run();
             console.log('下次通知日期已更新:', sub.name, '->', nextDate);
-          } else {
-            await env.DB.prepare('UPDATE subscriptions SET is_active=0 WHERE id=?')
-              .bind(sub.id).run();
           }
         } catch (e) {
           console.error('发送通知失败:', e);
