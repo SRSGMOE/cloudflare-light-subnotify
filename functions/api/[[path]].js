@@ -140,10 +140,29 @@ export async function onRequest(context) {
       const now = new Date();
       const today = now.toISOString().split('T')[0];
       
-      // 获取所有到期的订阅
-      const { results } = await env.DB.prepare(
-        'SELECT * FROM subscriptions WHERE next_notify_date<=? AND is_active=1'
-      ).bind(today).all();
+      // 获取所有到期的订阅（比较日期和时间）
+      const currentHour = String(now.getUTCHours()).padStart(2, '0');
+      const currentMinute = String(now.getUTCMinutes()).padStart(2, '0');
+      const currentTime = currentHour + ':' + currentMinute;
+      
+      // 获取所有活跃订阅
+      const { results: allSubs } = await env.DB.prepare(
+        'SELECT * FROM subscriptions WHERE is_active=1'
+      ).all();
+      
+      // 过滤出真正到期的订阅
+      const results = allSubs.filter(sub => {
+        // 比较日期
+        if (sub.next_notify_date > today) return false;
+        if (sub.next_notify_date < today) return true;
+        
+        // 日期相同时，比较时间
+        const subHour = sub.cycle_hour || '09';
+        const subMinute = sub.cycle_minute || '00';
+        const subTime = subHour.padStart(2, '0') + ':' + subMinute.padStart(2, '0');
+        
+        return subTime <= currentTime;
+      });
       
       // 获取通知标题
       const { results: titleResults } = await env.DB.prepare(
@@ -269,9 +288,17 @@ export async function onRequest(context) {
               const miao = miaoConfig.codes.find(c => c.id.toString() === codeId);
               if (miao && miao.code) {
                 try {
-                  await fetch('https://miaotixing.com/trigger?id=' + miao.code + '&text=' + encodeURIComponent(message) + '&type=json');
-                  sentToAny = true;
-                } catch (e) {}
+                  const miaoUrl = 'https://miaotixing.com/trigger?id=' + miao.code + '&text=' + encodeURIComponent(message) + '&type=json';
+                  const miaoRes = await fetch(miaoUrl);
+                  if (miaoRes.ok) {
+                    sentToAny = true;
+                    console.log('喵提醒发送成功:', miao.label || miao.code);
+                  } else {
+                    console.error('喵提醒发送失败:', miaoRes.status);
+                  }
+                } catch (e) {
+                  console.error('喵提醒发送错误:', e.message);
+                }
               }
             }
           }
